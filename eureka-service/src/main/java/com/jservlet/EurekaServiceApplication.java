@@ -27,6 +27,10 @@ import java.util.Map;
  * Supports dynamic re-configuration!
  * curl -d{} http://user:password@localhost:8761/refresh?access_token=da9dedaf-b604-4573-8e56-27af885a04d2
  * ["eureka.numberRegistrySyncRetries","eureka.environment","eureka.datacenter","eureka.server.waitTimeInMsWhenSyncEmpty"]
+ *
+ *
+ * @Autor: Franck Andriano
+ *
  */
 @EnableEurekaServer
 @SpringBootApplication
