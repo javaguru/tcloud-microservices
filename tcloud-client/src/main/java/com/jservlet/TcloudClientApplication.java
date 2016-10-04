@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 /**
  *  Tcould Client
  *
- *  @Autor: Franck Andriano
+ *  @Author: Franck Andriano
  */
 
 /*@EnableBinding(TcloudChannels.class)

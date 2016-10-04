@@ -44,7 +44,7 @@ import java.util.stream.Stream;
 /**
  *  Tcould Service
  *
- *  @Autor: Franck Andriano
+ *  @Author: Franck Andriano
  */
 
 @EnableZuulProxy

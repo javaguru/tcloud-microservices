@@ -29,7 +29,7 @@ import java.util.Map;
  * ["eureka.numberRegistrySyncRetries","eureka.environment","eureka.datacenter","eureka.server.waitTimeInMsWhenSyncEmpty"]
  *
  *
- * @Autor: Franck Andriano
+ * @Author: Franck Andriano
  *
  */
 @EnableEurekaServer

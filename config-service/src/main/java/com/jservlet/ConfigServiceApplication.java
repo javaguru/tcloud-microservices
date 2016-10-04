@@ -26,7 +26,7 @@ import org.springframework.cloud.config.server.EnableConfigServer;
  * mysecret
  *
  *
- * @Autor: Franck Andriano
+ * @Author: Franck Andriano
  */
 @EnableConfigServer
 @SpringBootApplication
