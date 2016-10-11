@@ -135,8 +135,12 @@ class MessageRestController {
 @RestController
 class TcloudRestController {
 
+    private final TcloudRepository tcloudRepository;
+
     @Autowired
-    private TcloudRepository tcloudRepository;
+    public TcloudRestController(TcloudRepository tcloudRepository) {
+        this.tcloudRepository = tcloudRepository;
+    }
 
     @GetMapping("/tclouds-service")
     Collection<Tcloud> tcloud(@RequestParam(value = "q", required = false) String q/*, final HttpRequest request*/) {
@@ -152,8 +156,12 @@ class TcloudRestController {
 @RequestMapping("/tclouds")
 class TcloudMvcController {
 
+    private final TcloudRepository tcloudRepository;
+
     @Autowired
-    private TcloudRepository tcloudRepository;
+    public TcloudMvcController(TcloudRepository tcloudRepository) {
+        this.tcloudRepository = tcloudRepository;
+    }
 
     @GetMapping("/names")
     ModelAndView page() {
