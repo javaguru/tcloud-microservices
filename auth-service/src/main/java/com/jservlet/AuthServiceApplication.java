@@ -11,9 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -90,10 +87,10 @@ import java.util.stream.Stream;
  * <p>
  * Use this TOKEN as a parameter of http request... access_token=9bf70492-6dad-40f4-9d6a-0237e5c1dec4
  *
- * @Author: Franck Andriano 2016
+ * @author Franck Andriano 2016
  */
 @EnableDiscoveryClient
-@EnableResourceServer
+@EnableResourceServer // Spring Boot 1.3 replace @EnableOAuth2Resource Spring Boot 1.2
 @SpringBootApplication
 public class AuthServiceApplication {
 
@@ -147,13 +144,11 @@ class OAuth2InitConfig implements CommandLineRunner {
     }
 }
 
-@Configuration
 class OAuth2ServerConfig {
 
     private final ClientRepository clientRepository;
     private final AccountRepository accountRepository;
 
-    // FIXME: 11/10/2016
     @Autowired(required = false)
     public OAuth2ServerConfig(AccountRepository accountRepository, ClientRepository clientRepository) {
         this.accountRepository = accountRepository;
@@ -289,50 +284,15 @@ class PrincipalRestController {
     }
 }
 
-
-@Configuration
-@EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
-class SecurityConfig extends WebSecurityConfigurerAdapter {
-
-   /* private Logger logger = Logger.getLogger(getClass());
-
-    @Override
-    @Autowired // <-- This is crucial otherwise Spring Boot creates its own
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        logger.warn("Defining inMemoryAuthentication root user!");
-        auth
-            .inMemoryAuthentication()
-                .withUser("user").password("password")
-                .roles("USER")
-            .and()
-                .withUser("root").password("toor")
-                .roles("USER", "ADMIN");
-    }
-
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        logger.warn("Defining default configure(HttpSecurity)!");
-        http
-            .authorizeRequests()
-                .antMatchers("/login**").permitAll()
-                .anyRequest().authenticated()
-            .and()
-                .csrf()
-            .and()
-                .formLogin().loginPage("/login");
-    }   */
-}
-
 @Configuration
 @EnableAuthorizationServer
-class AuthorizationServerConfiguration extends AuthorizationServerConfigurerAdapter {
+class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
     private final AuthenticationManager authenticationManager;
     private final ClientDetailsService clientDetailsService;
 
     @Autowired(required = false)
-    public AuthorizationServerConfiguration(AuthenticationManager authenticationManager, ClientDetailsService clientDetailsService) {
+    public AuthorizationServerConfig(AuthenticationManager authenticationManager, ClientDetailsService clientDetailsService) {
         this.authenticationManager = authenticationManager;
         this.clientDetailsService = clientDetailsService;
     }

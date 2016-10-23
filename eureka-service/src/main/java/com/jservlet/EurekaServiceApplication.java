@@ -29,8 +29,9 @@ import java.util.Map;
  * ["eureka.numberRegistrySyncRetries","eureka.environment","eureka.datacenter","eureka.server.waitTimeInMsWhenSyncEmpty"]
  *
  *
- * @Author: Franck Andriano
+ *  Eureka Server
  *
+ *  @author Franck Andriano 2016
  */
 @EnableEurekaServer
 @SpringBootApplication

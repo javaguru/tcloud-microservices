@@ -6,8 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 
@@ -19,7 +17,7 @@ import org.springframework.data.rest.core.annotation.RestResource;
 
 import org.springframework.data.rest.core.config.RepositoryRestConfiguration;
 import org.springframework.data.rest.webmvc.config.RepositoryRestConfigurerAdapter;
-import org.springframework.hateoas.MediaTypes;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
@@ -42,14 +40,14 @@ import java.util.*;
 import java.util.stream.Stream;
 
 /**
- *  Tcould Service
+ *  Tcloud Service
  *
- *  @Author: Franck Andriano
+ *  @author Franck Andriano 2016
  */
 
-@EnableZuulProxy
-@EnableDiscoveryClient
-@SpringBootApplication
+@EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
+@EnableZuulProxy        // @EnableDiscoveryClient @EnableCircuitBreaker
+@SpringBootApplication  // @SpringBootConfiguration @EnableAutoConfiguration
 public class TcloudApplication {
 
     /**
@@ -199,6 +197,7 @@ interface TcloudRepository extends JpaRepository<Tcloud, Long> {
     Collection<Tcloud> findById(@Param("rn") Long rn);
 
 }
+
 
 @Entity
 class Tcloud {

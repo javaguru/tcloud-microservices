@@ -5,13 +5,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.config.server.EnableConfigServer;
 
 /**
- * ConfigService
+ * ConfigServer Service
  *
  * curl http://localhost:8888/tclouds-service/master
  *
  * ConfigService refresh!
- *
- * curl -d{} localhost:8888/refresh
+ * curl -d{} localhost:xxxx/refresh
  *
  * For Encrypt/Decrypt, first you need "Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files",
  * new local_policy.jar and new US_export_policy.jar in \jdk1.8.0_102\jre\lib\security, now generate a RSA keystore with the keytool :
@@ -26,7 +25,8 @@ import org.springframework.cloud.config.server.EnableConfigServer;
  * mysecret
  *
  *
- * @Author: Franck Andriano
+ * @author Franck Andriano 2016
+ *
  */
 @EnableConfigServer
 @SpringBootApplication
