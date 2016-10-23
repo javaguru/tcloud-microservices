@@ -3,65 +3,71 @@ package com.jservlet;
 import com.google.common.collect.ImmutableMap;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
+import feign.RequestInterceptor;
 import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.log4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.security.oauth2.client.EnableOAuth2Sso;
 import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.circuitbreaker.EnableCircuitBreaker;
-
 import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.cloud.netflix.feign.EnableFeignClients;
 import org.springframework.cloud.netflix.feign.FeignClient;
 import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
-/*import org.springframework.cloud.stream.annotation.EnableBinding;
-import org.springframework.cloud.stream.annotation.Output;*/
-
+import org.springframework.cloud.security.oauth2.client.feign.OAuth2FeignRequestInterceptor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.hateoas.Resources;
-/*import org.springframework.integration.annotation.Gateway;
-import org.springframework.integration.annotation.IntegrationComponentScan;
-import org.springframework.integration.annotation.MessagingGateway;
-import org.springframework.messaging.MessageChannel;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableOAuth2Client; */
+import org.springframework.security.oauth2.client.OAuth2ClientContext;
+import org.springframework.security.oauth2.client.resource.BaseOAuth2ProtectedResourceDetails;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.ModelAndView;
 
-import java.util.*;
-
+import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.stream.Collectors;
 
+/*import org.springframework.cloud.stream.annotation.EnableBinding;
+import org.springframework.cloud.stream.annotation.Output;
+import org.springframework.integration.annotation.Gateway;
+import org.springframework.integration.annotation.IntegrationComponentScan;
+import org.springframework.integration.annotation.MessagingGateway;
+import org.springframework.messaging.MessageChannel;*/
+
 /**
- *  Tcould Client
+ * Tcloud Client
  *
- *  @Author: Franck Andriano
+ * OAuth2SsoDefaultConfiguration for OAuth2 Single Sign On (SSO):
+ * If the user only has {@code @EnableOAuth2Sso} but not on a WebSecurityConfigurerAdapter then one is
+ * added with all paths secured and with an order that puts it ahead of the default HTTP Basic security chain in Spring Boot.
+ *
+ * curl -X GET http://localhost:9999/tclouds/list -v -L -u franck:spring -c cookies.txt
+ *
+ * @author Franck Andriano 2016
  */
 
 /*@EnableBinding(TcloudChannels.class)
-@IntegrationComponentScan
-@EnableOAuth2Client
-@EnableResourceServer*/
-@EnableCircuitBreaker
+@IntegrationComponentScan */
+@EnableOAuth2Sso        // @EnableOAuth2Client
+//@EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
 @EnableFeignClients
-@EnableZuulProxy
-@EnableResourceServer
-@EnableDiscoveryClient
-@SpringBootApplication
+@EnableZuulProxy        // @EnableDiscoveryClient @EnableCircuitBreaker
+@SpringBootApplication  // @SpringBootConfiguration @EnableAutoConfiguration
 public class TcloudClientApplication {
 
-    /**
-     * http://localhost:9999/tclouds/list?access_token=443bd75c-60f5-40a5-856f-47f346683d87
-     *
-     * curl -d'{"tcloudName", "Nexus"}{"access_token", "b5e46da9-7ca7-47ef-93ac-3cd31fb93c7f"}' -H{"content type: application/hal+json"} localhost:9999/tclouds/names
-     *
-     */
-	public static void main(String[] args) {
+    public static void main(String[] args) {
 		SpringApplication.run(TcloudClientApplication.class, args);
 	}
 
@@ -70,7 +76,7 @@ public class TcloudClientApplication {
 @Component
 class DiscoveryClientConsole implements CommandLineRunner {
 
-    private Logger logger = Logger.getLogger(getClass());
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(DiscoveryClientConsole.class);
 
     @Autowired
     private DiscoveryClient discoveryClient;
@@ -82,15 +88,28 @@ class DiscoveryClientConsole implements CommandLineRunner {
     public void run(String... strings) throws Exception {
 
         // Spring Cloud Commons DiscoveryClient abstraction
-        discoveryClient.getInstances("tcloud-service").forEach((ServiceInstance si) -> {
+        discoveryClient.getInstances("edge-service").forEach((ServiceInstance si) -> {
             logger.warn("["+si.getServiceId()+"] "+ ToStringBuilder.reflectionToString(si));
             logger.warn("["+si.getServiceId()+"] "+ si.getHost()+":"+si.getPort()+" secure: "+si.isSecure());
         });
 
         // Spring Cloud Commons LoadBalancerClient
-        ServiceInstance tchoose = loadBalancerClient.choose("tcloud-service");
-        if (tchoose != null)
-            logger.warn("["+tchoose.getServiceId()+"] "+"choose: "+tchoose.getHost()+":"+tchoose.getPort()+" secure: "+tchoose.isSecure());
+        ServiceInstance edgechoose = loadBalancerClient.choose("edge-service");
+        if (edgechoose != null)
+            logger.warn("["+edgechoose.getServiceId()+"] "+"choose: "+edgechoose.getHost()+":"+edgechoose.getPort()+" secure: "+edgechoose.isSecure());
+
+        // Spring Cloud Commons DiscoveryClient abstraction
+        discoveryClient.getInstances("auth-service").forEach((ServiceInstance si) -> {
+            logger.warn("["+si.getServiceId()+"] "+ ToStringBuilder.reflectionToString(si));
+            logger.warn("["+si.getServiceId()+"] "+ si.getHost()+":"+si.getPort()+" secure: "+si.isSecure());
+        });
+
+        // Spring Cloud Commons LoadBalancerClient
+        ServiceInstance authchoose = loadBalancerClient.choose("auth-service");
+        if (authchoose != null)
+            logger.warn("["+authchoose.getServiceId()+"] "+"choose: "+authchoose.getHost()+":"+authchoose.getPort()+" secure: "+authchoose.isSecure());
+
+
     }
 }
 
@@ -106,16 +125,37 @@ interface TcloudChannels {
 MessageChannel output();
 }
 */
-@FeignClient("tcloud-service")
-interface TcloudReader {
-    @RequestMapping(method = RequestMethod.GET, value = "/tclouds")  // GetMapping signature doesn't work with Feign!?
+
+@FeignClient("edge-service") // or tcloud-service
+interface TcloudReader {                                // or tclouds
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds")  // GetMapping signature doesn't work with Feign!?
     Resources<Tcloud> read();
 }
 
-@FeignClient("tcloud-service")
-interface TcloudMessageReader {
-    @RequestMapping(method = RequestMethod.GET, value = "/message")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("edge-service") // or tcloud-service
+interface TcloudMessageReader {                         // message
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/message")  // GetMapping signature doesn't work with Feign!?
     String read();
+}
+
+/**
+ * Pre-defined custom RequestInterceptor for Feign Requests, uses the provided OAuth2ClientContext and Bearer tokens
+ * within Authorization for header injection with current OAuth2ProtectedResourceDetails!
+ *
+ * See https://github.com/spring-cloud/spring-cloud-netflix/issues/675
+ *
+ * {@link OAuth2ClientContext oauth2ClientContext}
+ * {@link OAuth2FeignRequestInterceptor resource}
+ */
+@Configuration
+class OAuth2FeignConfig {
+
+    @Bean
+    @Autowired(required = false)
+    public RequestInterceptor oauth2FeignRequestInterceptor(
+            OAuth2ClientContext oauth2ClientContext, BaseOAuth2ProtectedResourceDetails resource) {
+        return new OAuth2FeignRequestInterceptor(oauth2ClientContext, resource);
+    }
 }
 
 
@@ -169,6 +209,15 @@ class TcloudApiGateway {
         /*this.tcloudWriter = tcloudWriter;*/
     }
 
+    /**
+     * Get Rest Principal user through the OAuth2Sso!
+     * */
+    @RequestMapping("/user")
+    public Principal user(Principal user) {
+        return user;
+    }
+
+
     public Collection<String> fallback() {
         return new ArrayList<>();
     }
@@ -176,6 +225,7 @@ class TcloudApiGateway {
     @HystrixCommand(fallbackMethod = "fallback", commandProperties = {
             @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
     })
+
     @GetMapping("/names")
     public Collection<String> names() {
         return this.tcloudReader
@@ -249,3 +299,4 @@ class TcloudApiGatewayMvc {
     }
 
 }
+
