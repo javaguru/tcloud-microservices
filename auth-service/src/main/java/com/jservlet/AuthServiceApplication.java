@@ -144,12 +144,13 @@ class OAuth2InitConfig implements CommandLineRunner {
     }
 }
 
+@Configuration
 class OAuth2ServerConfig {
 
     private final ClientRepository clientRepository;
     private final AccountRepository accountRepository;
 
-    @Autowired(required = false)
+    @Autowired
     public OAuth2ServerConfig(AccountRepository accountRepository, ClientRepository clientRepository) {
         this.accountRepository = accountRepository;
         this.clientRepository = clientRepository;
