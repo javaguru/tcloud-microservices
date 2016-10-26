@@ -21,6 +21,7 @@ import org.springframework.cloud.security.oauth2.client.feign.OAuth2FeignRequest
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.hateoas.Resources;
+import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.resource.BaseOAuth2ProtectedResourceDetails;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
@@ -144,14 +145,14 @@ interface TcloudMessageReader {                         // message
  *
  * See https://github.com/spring-cloud/spring-cloud-netflix/issues/675
  *
- * {@link OAuth2ClientContext oauth2ClientContext}
- * {@link OAuth2FeignRequestInterceptor resource}
+ * {@link OAuth2ClientContext oauth2ClientContext} see {@link DefaultOAuth2ClientContext }
+ * {@link BaseOAuth2ProtectedResourceDetails resource} see config Oauth2 Resource!
  */
 @Configuration
 class OAuth2FeignConfig {
 
     @Bean
-    @Autowired(required = false)
+    @Autowired
     public RequestInterceptor oauth2FeignRequestInterceptor(
             OAuth2ClientContext oauth2ClientContext, BaseOAuth2ProtectedResourceDetails resource) {
         return new OAuth2FeignRequestInterceptor(oauth2ClientContext, resource);
