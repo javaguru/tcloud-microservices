@@ -1,6 +1,8 @@
 package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -21,10 +23,7 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.E
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
 import org.springframework.messaging.Message;
@@ -140,10 +139,19 @@ class TcloudRestController {
         this.tcloudRepository = tcloudRepository;
     }
 
+    public Collection<Tcloud> tcloudfallback() {
+        return new ArrayList<Tcloud>();
+    }
+
+    @HystrixCommand(fallbackMethod = "tcloudfallback")
     @GetMapping("/tclouds-service")
-    Collection<Tcloud> tcloud(@RequestParam(value = "q", required = false) String q/*, final HttpRequest request*/) {
-        if (StringUtils.isEmpty(q)) return this.tcloudRepository.findAll();
-        else return this.tcloudRepository.findByTcloudName(q);
+    Collection<Tcloud> tclouds() {
+        return this.tcloudRepository.findAll();
+    }
+
+    @GetMapping("/tclouds-service/{q}")
+    Collection<Tcloud> tcloud(@PathVariable(value = "q", required = false) String q) {
+        return this.tcloudRepository.findByTcloudName(q);
     }
 }
 
