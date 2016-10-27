@@ -226,7 +226,6 @@ class TcloudApiGateway {
     @HystrixCommand(fallbackMethod = "fallback", commandProperties = {
             @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
     })
-
     @GetMapping("/names")
     public Collection<String> names() {
         return this.tcloudReader
