@@ -2,7 +2,6 @@ package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
-import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -22,7 +21,6 @@ import org.springframework.data.rest.webmvc.config.RepositoryRestConfigurerAdapt
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -171,17 +169,17 @@ class TcloudMvcController {
 
     @GetMapping("/names")
     ModelAndView page() {
-        ModelAndView modelAndView = new ModelAndView("tcloud");
+        ModelAndView model = new ModelAndView("tcloud");
+
         List<Tcloud> tclouds = this.tcloudRepository.findAll();
         List<Object> data = new LinkedList<>();
-        for (Tcloud tcloud : tclouds) {
-            data.add(ImmutableMap.<String, Object>builder()
+        tclouds.forEach(tcloud -> data.add(ImmutableMap.<String, Object>builder()
                     .put("id", tcloud.getId())
                     .put("tcloudName", tcloud.getTcloudName())
-                    .build());
-        }
-        modelAndView.addObject("tclouds", data);
-        return modelAndView;
+                    .build()));
+
+        model.addObject("tclouds", data);
+        return model;
     }
 
 }

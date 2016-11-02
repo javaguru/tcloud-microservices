@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /*import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.Output;
@@ -127,15 +128,15 @@ MessageChannel output();
 }
 */
 
-@FeignClient("edge-service") // or tcloud-service
-interface TcloudReader {                                // or tclouds
-    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("tcloud-service") // or edge-service
+interface TcloudReader {                                // or /tcloud-service/tclouds
+    @RequestMapping(method = RequestMethod.GET, value = "tclouds")  // GetMapping signature doesn't work with Feign!?
     Resources<Tcloud> read();
 }
 
-@FeignClient("edge-service") // or tcloud-service
-interface TcloudMessageReader {                         // message
-    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/message")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("tcloud-service") // or edge-service
+interface TcloudMessageReader {                         // /tcloud-service/message
+    @RequestMapping(method = RequestMethod.GET, value = "message")  // GetMapping signature doesn't work with Feign!?
     String read();
 }
 
@@ -157,43 +158,6 @@ class OAuth2FeignConfig {
             OAuth2ClientContext oauth2ClientContext, BaseOAuth2ProtectedResourceDetails resource) {
         return new OAuth2FeignRequestInterceptor(oauth2ClientContext, resource);
     }
-}
-
-
-class Tcloud {
-
-    private Long id;
-
-    private String tcloudName;
-
-    Tcloud() {  // JPA why !?
-    }
-
-    public Tcloud(String tcloudName) {
-        this.tcloudName = tcloudName;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTcloudName() {
-        return tcloudName;
-    }
-
-    public void setTcloudName(String tcloudName) {
-        this.tcloudName = tcloudName;
-    }
-
-    @Override
-    public String toString() {
-        return "Tcloud { id: " + id + ", tcloudName: " + tcloudName + " }";
-    }
-
 }
 
 @RestController
@@ -281,22 +245,55 @@ class TcloudApiGatewayMvc {
 
     @GetMapping("/names")
     ModelAndView page() {
-        ModelAndView modelAndView = new ModelAndView("tcloud");
+        ModelAndView model = new ModelAndView("tcloud");
 
         Resources<Tcloud> tclouds = this.tcloudReader.read();
         List<Object> data = new LinkedList<>();
+        tclouds.forEach(tcloud -> data.add(ImmutableMap.<String, Object>builder()
+                        .put("id", tcloud.getId())
+                        .put("tcloudName", tcloud.getTcloudName())
+                        .build()));
 
-        for (Tcloud tcloud : tclouds) {
-            data.add(ImmutableMap.<String, Object>builder()
-                    .put("id", tcloud.getId())
-                    .put("tcloudName", tcloud.getTcloudName())
-                    .build());
-        }
-        modelAndView.addObject("tclouds", data);
-        modelAndView.addObject("message", this.tcloudMessageReader.read());
+        model.addObject("tclouds", data);
+        model.addObject("message", this.tcloudMessageReader.read());
 
-        return modelAndView;
+        return model;
     }
 
 }
 
+class Tcloud {
+
+    private Long id;
+
+    private String tcloudName;
+
+    Tcloud() {  // JPA why !?
+    }
+
+    public Tcloud(String tcloudName) {
+        this.tcloudName = tcloudName;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getTcloudName() {
+        return tcloudName;
+    }
+
+    public void setTcloudName(String tcloudName) {
+        this.tcloudName = tcloudName;
+    }
+
+    @Override
+    public String toString() {
+        return "Tcloud { id: " + id + ", tcloudName: " + tcloudName + " }";
+    }
+
+}
