@@ -253,7 +253,7 @@ class PrincipalRestController {
                        HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (request.isUserInRole("ROLE_SUPERVISOR") || (request.isUserInRole("ROLE_ADMIN") && request.getUserPrincipal().getName().equals(username))) {
             if (!accountRepository.findByUsername(username).isPresent())
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "User already exist!");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unknown user: " + username);
             else {
                 Optional<Account> optional = accountRepository.findByUsername(username);
                 Account account = optional.get();
