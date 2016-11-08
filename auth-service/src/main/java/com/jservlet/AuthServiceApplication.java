@@ -28,6 +28,8 @@ import org.springframework.security.oauth2.config.annotation.web.configurers.Aut
 import org.springframework.security.oauth2.provider.ClientDetailsService;
 import org.springframework.security.oauth2.provider.ClientRegistrationException;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 
@@ -296,9 +298,11 @@ class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        // @formatter:off
         http
                 .authorizeRequests()
                 .antMatchers(HttpMethod.OPTIONS, "/oauth/token").permitAll();
+        // @formatter:on
     }
 }
 
@@ -332,13 +336,18 @@ class CorsFilter implements Filter {
 @EnableAuthorizationServer
 class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
+    private TokenStore tokenStore = new InMemoryTokenStore();
+
     private final AuthenticationManager authenticationManager;
     private final ClientDetailsService clientDetailsService;
+    private final UserDetailsService userDetailsService;
 
-    @Autowired(required = false)
-    public AuthorizationServerConfig(AuthenticationManager authenticationManager, ClientDetailsService clientDetailsService) {
+    @Autowired
+    public AuthorizationServerConfig(AuthenticationManager authenticationManager,
+                                     ClientDetailsService clientDetailsService, UserDetailsService userDetailsService) {
         this.authenticationManager = authenticationManager;
         this.clientDetailsService = clientDetailsService;
+        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -348,7 +357,11 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
-        endpoints.authenticationManager(authenticationManager);
+        // @formatter:off
+        endpoints
+                .tokenStore(this.tokenStore)
+                .authenticationManager(authenticationManager).userDetailsService(userDetailsService);
+        // @formatter:on
     }
 
 }
