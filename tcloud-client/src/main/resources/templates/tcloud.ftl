@@ -14,7 +14,9 @@ Tclouds-service : <br>
 <#if tclouds?? && tclouds?has_content>
     <#list tclouds as tcloud>
         <#if tcloud.tcloudName?has_content>
-           ${tcloud.id} - ${tcloud.tcloudName}<br>
+           <span id="tcloud_${tcloud.id?html}" class="<#if tcloud_index%2=0>even<#else>odd</#if>">
+            ${tcloud.id?html} - ${tcloud.tcloudName?html}
+           </span><br>
         </#if>
     </#list>
  </#if>
