@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="OAuth2 SSO Client, Rest API jQuery Ajax demo">
+    <meta name="keywords" content="JSSO, OAuth2, SSO Client, Rest API, jQuery, Ajax">
+    <meta name="author" content="Franck Andriano">
+
+    <title>jQuery Ajax OAuth2 SSO Client, Rest API demo</title>
+
+    <style>
+        .results { width: 49.5%; display: inline-block; }
+        span.odd { display: inline-block; width: 100%; background: gainsboro; }
+        span.even { display: inline-block; width: 100%; background: whitesmoke; }
+    </style>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.8.0/jquery-1.8.0.min.js" type="text/javascript"></script>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/core-min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/sha256-min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/components/enc-base64-min.js"></script>
+
+    <!-- Get token curl -s acme:acmesecret@localhost:9191/uaa/oauth/token -d grant_type=password -d client_id=acme -d scope=read -d username=franck -d password=spring -->
+    <!-- Get refresh Token curl -s acme:acmesecret@localhost:9191/uaa/oauth/token -d grant_type=refresh_token -d refresh_token=d45d8568-9e20-40ed-a7dc-2c2cbcb98e07 -->
+    <!-- Get list tclouds curl http://localhost:9999/tclouds/list?access_token=2bb260c1-aed0-4ba0-abe9-b7ba928355af -->
+    <!-- Page service tclouds curl curl http://localhost:9999/tcloud-service/tclouds/names?access_token=2bb260c1-aed0-4ba0-abe9-b7ba928355af -->
+
+    <script type="text/javascript">
+
+        // Global Config OAuth2 Client and Token
+        var OAuth2Client = {
+            'token_uri': 'http://localhost:9191/uaa/oauth/token',
+            'client': 'acme',
+            'secret': 'acmesecret', // encode secret!
+            'user': '',
+            'password': '',
+            'scope': 'read'
+        };
+        var OAuth2Token = {
+            'access_token': '',
+            'refresh_token': '',
+            'expires_in': new Date()
+        };
+
+        $(function () {
+
+            // Events UI interactions
+            $('#login').click(function() {
+                cleanToken();
+                cleanUI();
+                ajaxSSOLogin()
+            });
+
+            $('#logout').click(function() {
+                cleanToken();
+                cleanUI()
+            });
+
+            $('#refresh').click(function() {
+                OAuth2Token.refresh_token === '' ? ajaxSSOLogin() : ajaxSSORefresh()
+            });
+
+            $('#service').click(function() {
+                OAuth2Token.access_token === '' ? ajaxSSOLogin() : ajaxService()
+            });
+
+            $('#serviceList').click(function() {
+                OAuth2Token.access_token === '' ? ajaxSSOLogin() : ajaxListService()
+            });
+
+            // first call login!
+            //ajaxSSOLogin()
+        });
+
+        // Call ajax OAuth2 SSO request, attach deferred.promise(jqXHR)!
+        function ajaxSSOLogin() {
+            var ajax = loginToken().done(storeToken,infoToken,showUI).fail(errorServices);
+            $.when(ajax).done(function() {
+                if (ajax.status == 200) reloadSSOServices()
+            })
+        }
+
+        function ajaxSSORefresh() {
+            var ajax = refreshToken().done(storeToken,infoToken).fail(errorServices);
+            $.when(ajax).done(function() {
+                if (ajax.status == 200) reloadSSOServices()
+            });
+
+            // additional callbacks!
+            ajax.fail(function() {
+                // http status 401 Unauthorized: unknown, empty or malformed Bear (Invalid token/Invalid refresh token (expired))
+                // http status 400 Bad request: Invalid grant, Invalid refresh token, unknown or empty!
+                // http status 0 Aborted timeout !?
+                if (ajax.status == 401 || ajax.status == 400) ajaxSSOLogin()
+            })
+        }
+
+        // Ajax request!
+        function loginToken(){
+            // Form input values username & password
+            var form = $("#form_auth");
+            OAuth2Client.username = form.find('input[name="username"]').val();
+            OAuth2Client.password = form.find('input[name="password"]').val();
+            // Authorization Basic
+            //var clientToken = btoa(OAuth2Client.client+":"+OAuth2Client.secret);
+            var clientToken = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(OAuth2Client.client+":"+OAuth2Client.secret));
+            var paramsData = {
+                'client_id': OAuth2Client.client,
+                'grant_type': 'password',
+                'username': OAuth2Client.username,
+                'password': OAuth2Client.password,
+                'scope': OAuth2Client.scope
+            };
+            return $.ajax({
+                type: 'POST',
+                url: OAuth2Client.token_uri,
+                headers: {'Authorization': 'Basic ' + clientToken},
+                crossDomain: true,
+                dataType: 'json',
+                data: paramsData
+            })
+        }
+
+        // Store token
+        function storeToken(data) {
+            OAuth2Token.access_token = data.access_token;
+            OAuth2Token.refresh_token = data.refresh_token;
+            OAuth2Token.expires_in = data.expires_in
+        }
+
+        // Info token
+        function infoToken(data) {
+            OAuth2Token.expires_in = new Date((new Date()).getTime() + Number(data.expires_in) / 60 * 60000);
+            $("#oauth_token").html(data.access_token+" ("+OAuth2Token.expires_in.getHours()+"h"+OAuth2Token.expires_in.getMinutes()+")").css("color","green");
+            $("#oauth_refresh_token").html(data.refresh_token)
+        }
+
+        // Reset token
+        function cleanToken() {
+            OAuth2Token = { 'access_token': '', 'refresh_token': '', 'expires_in': new Date() }
+        }
+
+        // Refresh token
+        function refreshToken(){
+            // Authorization Basic
+            //var clientToken = btoa(OAuth2Client.client+":"+OAuth2Client.secret);
+            var clientToken = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(OAuth2Client.client+":"+OAuth2Client.secret));
+            var paramsData = {
+                'grant_type': 'refresh_token',
+                'refresh_token': OAuth2Token.refresh_token
+            };
+            return $.ajax({
+                type: 'POST',
+                url: OAuth2Client.token_uri,
+                headers: {'Authorization': 'Basic ' + clientToken},
+                crossDomain: true,
+                dataType: 'json',
+                data: paramsData
+            })
+        }
+
+
+        // User Interface utils
+        function cleanUI() {
+            $("#oauth_token").empty().css("color", "black");
+            $("#oauth_refresh_token").empty().css("color", "black");
+            emptyUI()
+        }
+        function emptyUI() {
+            $("#results").empty();
+            $("#resultsList").empty();
+            $("#error").empty()
+        }
+        function showUI() {
+            $("#refresh").show();
+            $("#service").show();
+            $("#serviceList").show();
+            $("#logout").show()
+        }
+
+
+        /**
+         * Reload/load all resources protected by OAuth2!
+         * All asynchronous ajax services!
+         */
+        function reloadSSOServices() {
+            ajaxService();
+            ajaxListService()
+        }
+
+        // Ajax Client Services, attach deferred.promise(jqXHR)
+        function ajaxService() {
+            var ajax = tcloudService().done(resultService).fail(errorServices);
+            $.when(ajax).fail(function() {
+                // http status 401 Unauthorized or 400 Bad request
+                if (ajax.status == 401 || ajax.status == 400) ajaxSSORefresh()
+            })
+        }
+
+        function ajaxListService() {
+            var ajax = tcloudListService().done(resultListService).fail(errorServices);
+            $.when(ajax).fail(function() {
+                // http status 401 Unauthorized or 400 Bad request
+                if (ajax.status == 401 || ajax.status == 400) ajaxSSORefresh()
+            })
+        }
+
+        // Handle ajax error services
+        function errorServices(xhr) {
+            //$("#error").html(xhr.status+" "+xhr.responseText).css("color","red");
+            console.log(xhr.status + " " + xhr.responseText)
+        }
+
+        /**
+         * Service tcloud names with uri: http://localhost:9999/tclouds/names (or simple html page!)
+         */
+        function tcloudService(){
+            return $.ajax({
+                type: 'GET',
+                url: 'http://localhost:9999/tclouds-service/names',
+                crossDomain: true,
+                headers: {'Authorization': 'Bearer '+ OAuth2Token.access_token},
+                dataType: 'html'
+            })
+        }
+        function resultService (data) {
+            $("#results").html(data)
+        }
+
+        /**
+         * Service tclouds list with uri: http://localhost:9999/tclouds/list (or simple json list!)
+         */
+        function tcloudListService(){
+            return $.ajax({
+                type: 'GET',
+                url: 'http://localhost:9999/tclouds/list',
+                crossDomain: true,
+                headers: {'Authorization': 'Bearer '+ OAuth2Token.access_token},
+                dataType: 'json'
+            })
+        }
+        function resultListService (data) {
+            var layer = $("#resultsList").empty().append("Tclouds-service :").append("<br>");
+            $.each(data, function(i, el) {
+                layer.append($('<span>', { id: 'tcloud_'+el.id, text: el.id+' - '+el.tcloudName})
+                .addClass((i % 2 == 0)?"even":"odd"))
+                .append('<br>')
+            })
+        }
+    </script>
+</head>
+
+<body>
+
+<div>
+    <form id="form_auth">
+        <div>
+            <div><input name="username" placeholder="Username" value="franck"/></div>
+            <div><input type="password" name="password" placeholder="Password" value="spring"/></div>
+            <div>
+                <input type="button" id="login" name="login" value="login"/>
+                <input type="button" id="refresh" name="refresh" value="Refresh Token" style="display: none;"/>
+                <input type="button" id="logout" name="logout" value="logout" style="display: none;"/><br/>
+                <input type="button" id="service" name="tcloud" value="Tcloud Service" style="display: none;"/>
+                <input type="button" id="serviceList" name="tclouds" value="Tcloud ListService" style="display: none;"/><br/>
+                OAuth2 token : <span id="oauth_token"></span><br/>
+                OAuth2 refresh token : <span id="oauth_refresh_token"></span><br/>
+                <div>
+                    <div id="results" class="results"></div>
+                    <div id="resultsList" class="results"></div>
+                </div>
+                <span id="error"></span>
+            </div>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>
