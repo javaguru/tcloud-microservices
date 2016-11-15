@@ -20,6 +20,8 @@ import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 import org.springframework.cloud.security.oauth2.client.feign.OAuth2FeignRequestInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.hateoas.Resources;
 import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
@@ -33,6 +35,10 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.ModelAndView;
 
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -63,7 +69,7 @@ import org.springframework.messaging.MessageChannel;*/
 /*@EnableBinding(TcloudChannels.class)
 @IntegrationComponentScan */
 @EnableOAuth2Sso        // @EnableOAuth2Client
-//@EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
+@EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
 @EnableFeignClients
 @EnableZuulProxy        // @EnableDiscoveryClient @EnableCircuitBreaker
 @SpringBootApplication  // @SpringBootConfiguration @EnableAutoConfiguration
@@ -128,15 +134,15 @@ MessageChannel output();
 }
 */
 
-@FeignClient("tcloud-service") // or edge-service
-interface TcloudReader {                                // or /tcloud-service/tclouds
-    @RequestMapping(method = RequestMethod.GET, value = "tclouds")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("edge-service") // or edge-service / tcloud-service
+interface TcloudReader {                                // or /tclouds
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds")  // GetMapping signature doesn't work with Feign!?
     Resources<Tcloud> read();
 }
 
-@FeignClient("tcloud-service") // or edge-service
-interface TcloudMessageReader {                         // /tcloud-service/message
-    @RequestMapping(method = RequestMethod.GET, value = "message")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("edge-service") // or tcloud-service
+interface TcloudMessageReader {                         // or /message
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/message")  // GetMapping signature doesn't work with Feign!?
     String read();
 }
 
@@ -158,6 +164,32 @@ class OAuth2FeignConfig {
             OAuth2ClientContext oauth2ClientContext, BaseOAuth2ProtectedResourceDetails resource) {
         return new OAuth2FeignRequestInterceptor(oauth2ClientContext, resource);
     }
+}
+
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
+class CorsFilter implements Filter {
+
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
+        HttpServletResponse response = (HttpServletResponse) res;
+        HttpServletRequest request = (HttpServletRequest) req;
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
+        response.setHeader("Access-Control-Max-Age", "1800");
+        response.setHeader("Access-Control-Allow-Headers", "origin,accept,x-requested-with,content-type,access-control-request-method,access-control-request-headers,authorization");
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+        } else {
+            chain.doFilter(req, res);
+        }
+    }
+
+    @Override
+    public void init(FilterConfig filterConfig) {  }
+
+    @Override
+    public void destroy() { }
 }
 
 @RestController
@@ -187,9 +219,7 @@ class TcloudApiGateway {
         return new ArrayList<>();
     }
 
-    @HystrixCommand(fallbackMethod = "fallback", commandProperties = {
-            @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
-    })
+    @HystrixCommand(fallbackMethod = "fallback")
     @GetMapping("/names")
     public Collection<String> names() {
         return this.tcloudReader
