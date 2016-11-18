@@ -61,14 +61,18 @@ import org.springframework.messaging.MessageChannel;*/
  * If the user only has {@code @EnableOAuth2Sso} but not on a WebSecurityConfigurerAdapter then one is
  * added with all paths secured and with an order that puts it ahead of the default HTTP Basic security chain in Spring Boot.
  *
+ * @EnableOAuth2Sso  with OAuth2Sso client in config
  * curl -X GET http://localhost:9999/tclouds/list -v -L -u franck:spring -c cookies.txt
+ * or
+ * @EnableResourceServer with Resource Server in config
+ * curl -X GET http://localhost:9999/tclouds/list?access_token=8f142df8-c13f-4297-b841-abbb275e1b46
  *
  * @author Franck Andriano 2016
  */
 
 /*@EnableBinding(TcloudChannels.class)
 @IntegrationComponentScan */
-@EnableOAuth2Sso        // @EnableOAuth2Client
+//@EnableOAuth2Sso        // @EnableOAuth2Client
 @EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
 @EnableFeignClients
 @EnableZuulProxy        // @EnableDiscoveryClient @EnableCircuitBreaker
@@ -273,6 +277,11 @@ class TcloudApiGatewayMvc {
         this.tcloudMessageReader = tcloudMessageReader;
     }
 
+    public ModelAndView listback() {
+        return new ModelAndView("error");
+    }
+
+    @HystrixCommand(fallbackMethod = "listback")
     @GetMapping("/names")
     ModelAndView page() {
         ModelAndView model = new ModelAndView("tcloud");
