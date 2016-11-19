@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="description" content="OAuth2 SSO Client, Rest API jQuery Ajax demo">
-    <meta name="keywords" content="JSSO, OAuth2, SSO Client, Rest API, jQuery, Ajax">
+    <meta name="keywords" content="JSSO, OAuth2, SSO Client, JWT Token, Rest API, jQuery, Ajax">
     <meta name="author" content="Franck Andriano">
 
     <title>jQuery Ajax OAuth2 SSO Client, Rest API demo</title>
@@ -24,6 +24,17 @@
     <!-- Get refresh Token curl -s acme:acmesecret@localhost:9191/uaa/oauth/token -d grant_type=refresh_token -d refresh_token=d45d8568-9e20-40ed-a7dc-2c2cbcb98e07 -->
     <!-- Get list tclouds curl http://localhost:9999/tclouds/list?access_token=2bb260c1-aed0-4ba0-abe9-b7ba928355af -->
     <!-- Page service tclouds curl curl http://localhost:9999/tcloud-service/tclouds/names?access_token=2bb260c1-aed0-4ba0-abe9-b7ba928355af -->
+
+    <!--
+    -- JWT (Jason Web Token) see online openid content on https://jwt.io/
+    -- jti field prevent the JWT from being replayed! (include refresh token)
+    {access_token:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE0Nzk1NTMwNjEsInVzZXJfbmFtZSI6ImZyYW5jayIsImF1dGhvcml0aWVzIjpbIlJPTEVfQURNSU4iLCJST0xFX1VTRVIiXSwianRpIjoiMDMzZjhkNGItZjIwMC00MTdhLWIxNDItNmYwZDAwNmQ2NDU2IiwiY2xpZW50X2lkIjoic3VwZXJtZSIsInNjb3BlIjpbIm9wZW5pZC5yZWFkIl19.uyfPq7aFr8rza2AeMvN6gbJkLeSfmpHwhGGuFO6InGfJ6S2u0M_-96BKW2gTSPbNu_3vJ9oFotcZZmiTez0lFnR2CEi2mHQF-maMl7HBlWGf1qrXCd_Lx9oNXwhGnXrKcqicNnc2_jR4bGMDjKeS1ywessdSL_vVqkzMDwqIUFE"
+    expires_in:1799
+    jti:"033f8d4b-f200-417a-b142-6f0d006d6456"
+    refresh_token:"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX25hbWUiOiJmcmFuY2siLCJzY29wZSI6WyJvcGVuaWQucmVhZCJdLCJhdGkiOiIwMzNmOGQ0Yi1mMjAwLTQxN2EtYjE0Mi02ZjBkMDA2ZDY0NTYiLCJleHAiOjE0Nzk1NTQ4NjEsImF1dGhvcml0aWVzIjpbIlJPTEVfQURNSU4iLCJST0xFX1VTRVIiXSwianRpIjoiODQwNzc3NmYtNjQ2My00OGUwLWFiZjMtMDQ5Zjc0MzA5Nzk4IiwiY2xpZW50X2lkIjoic3VwZXJtZSJ9.uGFt2rHzd2k8_fM8T8fg-sf1pYOU4ATeHEAjzp0E_VfpqIdkLqrEkIA6Sl1b-pfZWJt-S5pN0FoKEcgCpg1XX7pwSS43gXwMROEc43cYLxrrKRPGGvZH0LhaxdAiUu8kIG0KoJpQHJrM-wGoNmWFI1_BPQ8WOcivTVYCCJy793k"
+    scope:"openid.read"
+    token_type:"bearer"}
+    -->
 
     <script type="text/javascript">
 
