@@ -3,6 +3,7 @@ package com.jservlet;
 import org.apache.log4j.Logger;
 import org.hibernate.validator.constraints.NotEmpty;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -25,15 +26,13 @@ import org.springframework.security.oauth2.config.annotation.configurers.ClientD
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
-import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
-import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
 import org.springframework.security.oauth2.provider.ClientDetailsService;
 import org.springframework.security.oauth2.provider.ClientRegistrationException;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
-import org.springframework.security.oauth2.provider.token.TokenStore;
-import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 
@@ -52,6 +51,8 @@ import java.util.stream.Stream;
 
 /**
  * A Minimal Security OAuth2 Server
+ *
+ * Active Oauth2 Resource jwt token endpoint in config!
  *
  * *************
  * Code grant
@@ -303,10 +304,9 @@ class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         // @formatter:off
-        //http.addFilterBefore(new CorsFilter(), BasicAuthenticationFilter.class);
         http
                 .authorizeRequests()
-                .antMatchers(HttpMethod.OPTIONS, "/oauth/token").permitAll()
+                .antMatchers(HttpMethod.OPTIONS, "/oauth/token", "/oauth/token_key").permitAll()
              .and()
                 .csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
@@ -344,11 +344,31 @@ class CorsFilter implements Filter {
 @EnableAuthorizationServer
 class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
-    private TokenStore tokenStore = new InMemoryTokenStore();
+    private Logger logger = Logger.getLogger(getClass());
+
+    @Value("${config.oauth2.private-key}")
+    private String privateKey;
+
+    @Value("${config.oauth2.public-key}")
+    private String publicKey;
 
     private final AuthenticationManager authenticationManager;
     private final ClientDetailsService clientDetailsService;
     private final UserDetailsService userDetailsService;
+
+    @Bean
+    public JwtAccessTokenConverter tokenEnhancer() {
+        logger.warn("Initializing JWT with public key:\n" + publicKey);
+        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+        converter.setSigningKey(privateKey);
+        converter.setVerifierKey(publicKey);
+        return converter;
+    }
+
+    @Bean
+    public JwtTokenStore tokenStore() {  // Handle OAuth2 refresh JwtToken!
+        return new JwtTokenStore(tokenEnhancer());
+    }
 
     @Autowired
     public AuthorizationServerConfig(AuthenticationManager authenticationManager,
@@ -367,34 +387,18 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
         // @formatter:off
         endpoints
-                .tokenStore(this.tokenStore)
+                .tokenStore(tokenStore())
+                .accessTokenConverter(tokenEnhancer())
                 .authenticationManager(authenticationManager).userDetailsService(userDetailsService);
         // @formatter:on
     }
 
-}
-
-/*
-@Configuration
-@EnableResourceServer
-class ResourceServerConfig extends ResourceServerConfigurerAdapter {
-
-    @Bean
-    public TokenStore tokenStore() {
-        return new InMemoryTokenStore();
-    }
-
     @Override
-    public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
-        resources.resourceId("uaa");
-    }
-
-    @Override
-    public void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests().antMatchers("/me").authenticated();
+    public void configure(AuthorizationServerSecurityConfigurer server) throws Exception {
+        server.tokenKeyAccess("isAnonymous() || hasAuthority('ROLE_TRUSTED_CLIENT')")
+                .checkTokenAccess("hasAuthority('ROLE_TRUSTED_CLIENT')");
     }
 }
-*/
 
 // See bootstrap.properties h2 database server config!
 // DROP TABLE IF EXISTS ACCOUNT;
