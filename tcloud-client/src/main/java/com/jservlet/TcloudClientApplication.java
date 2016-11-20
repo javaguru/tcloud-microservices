@@ -23,10 +23,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.hateoas.Resources;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.resource.BaseOAuth2ProtectedResourceDetails;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
+
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -196,6 +200,31 @@ class CorsFilter implements Filter {
     public void destroy() { }
 }
 
+
+
+@Controller
+class TcloudLoginMvc {
+
+    @GetMapping("/login")
+    ModelAndView login() { return new ModelAndView("jssoclient"); }
+}
+
+@Configuration
+@EnableWebSecurity
+@EnableResourceServer
+class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        // @formatter:off
+        http
+                .authorizeRequests().antMatchers("/**").hasRole("USER")
+            .and()
+                .formLogin().loginPage("/login").permitAll();
+        // @formatter:on
+    }
+}
+
 @RestController
 @RequestMapping("/tclouds")
 class TcloudApiGateway {
@@ -218,12 +247,13 @@ class TcloudApiGateway {
         return user;
     }
 
-
     public Collection<String> fallback() {
         return new ArrayList<>();
     }
 
-    @HystrixCommand(fallbackMethod = "fallback")
+    @HystrixCommand(fallbackMethod = "fallback", commandProperties = {
+            @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
+    })
     @GetMapping("/names")
     public Collection<String> names() {
         return this.tcloudReader
