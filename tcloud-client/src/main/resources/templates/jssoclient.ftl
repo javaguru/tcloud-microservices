@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="description" content="OAuth2 SSO Client, Rest API jQuery Ajax demo">
-    <meta name="keywords" content="JSSO, OAuth2, SSO Client, JWT Token, Rest API, Crypto-js, jQuery, Ajax">
+    <meta name="keywords" content="JSSO, OAuth2, SSO Client, JWT Token, Rest API, jQuery, Ajax">
     <meta name="author" content="Franck Andriano">
 
     <title>jQuery Ajax OAuth2 SSO Client, Rest API demo</title>
@@ -36,7 +36,7 @@
                 OAuth2Client: {
                     'token_uri': 'http://localhost:9191/uaa/oauth/token',
                     'client': 'acme',
-                    'secret': 'acmesecret', // encode secret!
+                    'secret': '$2a$10$z/8fQRJlWmEB2jU3kC2rueX0gtVi340X2/bri6U5Yxw4tdHG/vZJS', // encode secret!
                     'username': '',
                     'password': '',
                     'scope': 'read'
@@ -278,7 +278,8 @@
 
     function loginSSOError(xhr) {
         var jsonResp = JSON.parse(xhr.responseText);
-        $("#error").html(xhr.status+" "+jsonResp.error+" "+jsonResp.error_description).css("color","red");
+        $("#error").html(xhr.status+" "+jsonResp.error+" "
+                +(jsonResp.error_description == undefined) ? jsonResp.message : jsonResp.error_description).css("color","red");
     }
 
     // Ajax Client Services, attach deferred.promise(jqXHR)
