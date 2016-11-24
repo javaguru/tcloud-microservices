@@ -15,13 +15,17 @@ import org.springframework.core.annotation.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
@@ -36,23 +40,29 @@ import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
+import javax.persistence.*;
 import javax.persistence.Id;
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * A Minimal Security OAuth2 Server
  *
- * Active Oauth2 Resource jwt token endpoint in config!
+ * Active Oauth2 JWT (Jason Web Token) SHA256 with RSA private/public keys in config!
+ *
+ * curl http://localhost:9191/uaa/oauth/token_key
+ * {"alg":"SHA256withRSA",
+ *  "value":"-----BEGIN PUBLIC KEY-----
+ *  MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNQZKqTlO/+2b4ZdhqGJzGBDltb5PZmBz1ALN2YLvt341pH6i5mO1V9cX5Ty1LM70fKfnIoYUP4KCE
+ *  33dPnC7LkUwE/myh1zM6m8cbL5cYFPyP099thbVxzJkjHWqywvQih/qOOjliomKbM9pxG8Z1dB26hL9dSAZuA8xExjlPmQIDAQAB
+ *  -----END PUBLIC KEY-----"}
  *
  * *************
  * Code grant
@@ -113,8 +123,12 @@ public class AuthServiceApplication {
 }
 
 // Enabled JpaRepository, see bootstrap.properties h2 database server config!
-interface AccountRepository extends JpaRepository<Account, Long> {
-    Optional<Account> findByUsername(String username);
+interface UsersRepository extends JpaRepository<Users, Long> {
+    Optional<Users> findByUsername(String username);
+}
+
+interface AuthoritiesRepository extends JpaRepository<Authorities, Long> {
+    List<Authorities> findByUsername(String username);
 }
 
 interface ClientRepository extends JpaRepository<Client, Long> {
@@ -126,33 +140,50 @@ class OAuth2InitConfig implements CommandLineRunner {
 
     private Logger logger = Logger.getLogger(getClass());
 
-    private final AccountRepository accountRepository;
+    private final UsersRepository usersRepository;
+    private final AuthoritiesRepository authoritiesRepository;
     private final ClientRepository clientRepository;
 
     @Autowired
-    public OAuth2InitConfig(AccountRepository accountRepository, ClientRepository clientRepository) {
-        this.accountRepository = accountRepository;
+    public OAuth2InitConfig(UsersRepository usersRepository, AuthoritiesRepository authoritiesRepository,
+                            ClientRepository clientRepository) {
+        this.usersRepository = usersRepository;
+        this.authoritiesRepository = authoritiesRepository;
         this.clientRepository = clientRepository;
     }
 
     @Override
     public void run(String... strings) throws Exception {
-        if (accountRepository.findAll().isEmpty()) {
-            Stream.of("root,toor", "franck,spring", "admin,boot", "admin,cloud")
-                    .map(x -> x.split(","))
-                    .forEach(tpl -> accountRepository.save(new Account(tpl[0], tpl[1], true)));
-            logger.warn("AccountRepository creation:");
-        } else
-            logger.warn("AccountRepository injection:");
-        accountRepository.findAll().forEach(logger::warn);
 
+        // Users
+        if (usersRepository.findAll().isEmpty()) {
+            Stream.of("root,toor", "franck,spring", "admin,cloud").map(x -> x.split(","))
+                    .forEach(tpl -> usersRepository.save(new Users(tpl[0], new BCryptPasswordEncoder(10).encode(tpl[1]), true)));
+            logger.warn("UsersRepository creation:");
+        }
+        else logger.warn("UsersRepository injection:");
+        usersRepository.findAll().forEach(logger::warn);
+
+        // Authorities
+        if (authoritiesRepository.findAll().isEmpty()) {
+            Stream.of("root,ROLE_USER", "franck,ROLE_USER", "admin,ROLE_USER").map(x -> x.split(","))
+                    .forEach(tpl -> authoritiesRepository.save(new Authorities(tpl[0], tpl[1])));
+            Stream.of("root,ROLE_ADMIN", "franck,ROLE_ADMIN", "admin,ROLE_ADMIN").map(x -> x.split(","))
+                    .forEach(tpl -> authoritiesRepository.save(new Authorities(tpl[0], tpl[1])));
+            // root only
+            authoritiesRepository.save(new Authorities("root", "ROLE_SUPERVISOR"));
+            logger.warn("authoritiesRepository creation:");
+        }
+        else logger.warn("authoritiesRepository injection:");
+        authoritiesRepository.findAll().forEach(logger::warn);
+
+        // Clients
         if (clientRepository.findAll().isEmpty()) {
-            Stream.of("acme,acmesecret", "mobile,secret", "html5,secret")
-                    .map(x -> x.split(","))
-                    .forEach(tpl -> clientRepository.save(new Client(tpl[0], tpl[1])));
+            Stream.of("acme,acmesecret", "mobile,secret", "html5,secret").map(x -> x.split(","))
+                    .forEach(tpl -> clientRepository.save(new Client(tpl[0], new BCryptPasswordEncoder(10).encode(tpl[1]))));
             logger.warn("ClientRepository creation:");
-        } else
-            logger.warn("ClientRepository injection:");
+        }
+        else logger.warn("ClientRepository injection:");
         clientRepository.findAll().forEach(logger::warn);
     }
 }
@@ -160,51 +191,57 @@ class OAuth2InitConfig implements CommandLineRunner {
 @Configuration
 class OAuth2ServerConfig {
 
+    private Logger logger = Logger.getLogger(getClass());
+
     private final ClientRepository clientRepository;
-    private final AccountRepository accountRepository;
+    private final AuthoritiesRepository authoritiesRepository;
+    private final UsersRepository usersRepository;
 
     @Autowired
-    public OAuth2ServerConfig(AccountRepository accountRepository, ClientRepository clientRepository) {
-        this.accountRepository = accountRepository;
+    public OAuth2ServerConfig(UsersRepository usersRepository, AuthoritiesRepository authoritiesRepository,
+                              ClientRepository clientRepository) {
+        this.usersRepository = usersRepository;
+        this.authoritiesRepository = authoritiesRepository;
         this.clientRepository = clientRepository;
     }
 
     @Bean
     ClientDetailsService clientDetailsService() {
         return clientId -> clientRepository.findByClientId(clientId)
-                .map(client -> {
-                    BaseClientDetails details = new BaseClientDetails(
-                            client.getClientId(),
-                            null,
-                            client.getScopes(),
-                            client.getAuthorizedGrantTypes(),
-                            client.getAuthorities(),
-                            client.getRegisteredRedirectUri()
-                    );
-                    details.setClientSecret(client.getSecret());
-                    details.setAutoApproveScopes(Arrays.asList(client.getAutoApproveScopes().split(",")));
-                    details.setAccessTokenValiditySeconds(1800);  // 30mn Token < 1h RefreshToken!
-                    details.setRefreshTokenValiditySeconds(3600);
-                    return details;
-                })
-                .orElseThrow(() -> new ClientRegistrationException(String.format("no client %s registered", clientId)));
+            .map(client -> {
+                BaseClientDetails details = new BaseClientDetails(
+                        client.getClientId(),
+                        null,
+                        client.getScopes(),
+                        client.getAuthorizedGrantTypes(),
+                        client.getAuthorities(),
+                        client.getRegisteredRedirectUri()
+                );
+                details.setClientSecret(client.getSecret());
+                details.setAutoApproveScopes(Arrays.asList(client.getAutoApproveScopes().split(",")));
+                details.setAccessTokenValiditySeconds(1800);  // 30mn Token < 1h RefreshToken!
+                details.setRefreshTokenValiditySeconds(3600);
+                return details;
+            })
+            .orElseThrow(() -> new ClientRegistrationException(String.format("no client %s registered", clientId)));
     }
 
     @Bean
-    UserDetailsService userDetailsService() {
-        return username -> accountRepository.findByUsername(username)
-                .map(account -> {
-                    boolean active = account.isActive();
-                    return new User(
-                            account.getUsername(),
-                            account.getPassword(),
-                            active, active, active, active,
-                            ("root".equals(username)) ?
-                                    AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_ADMIN", "ROLE_SUPERVISOR") :
-                                    AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_ADMIN")
-                    );
-                })
-                .orElseThrow(() -> new UsernameNotFoundException(String.format("username %s not found!", username)));
+    UserDetailsService userDetailsService() throws RuntimeException {
+        return username -> usersRepository.findByUsername(username)
+            .map(user -> {
+                boolean active = user.isActive();
+                List<Authorities> authorities = authoritiesRepository.findByUsername(username);
+                List<GrantedAuthority> grantedAuthorities = new ArrayList<>(authorities.size());
+                authorities.forEach(authority -> grantedAuthorities.add(new SimpleGrantedAuthority(authority.getAuthority())));
+                return new User(
+                        user.getUsername(),
+                        user.getPassword(),
+                        active, active, active, active,
+                        grantedAuthorities
+                );
+            })
+            .orElseThrow(() -> new UsernameNotFoundException(String.format("username %s not found!", username)));
     }
 }
 
@@ -233,11 +270,11 @@ class PrincipalRestController {
 
     private Logger logger = Logger.getLogger(getClass());
 
-    private final AccountRepository accountRepository;
+    private final UsersRepository usersRepository;
 
     @Autowired
-    public PrincipalRestController(AccountRepository accountRepository) {
-        this.accountRepository = accountRepository;
+    public PrincipalRestController(UsersRepository usersRepository) {
+        this.usersRepository = usersRepository;
     }
 
     @GetMapping("/user")
@@ -250,12 +287,12 @@ class PrincipalRestController {
                       @RequestParam(value = "password") String password,
                       HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (request.isUserInRole("ROLE_SUPERVISOR")) {
-            if (accountRepository.findByUsername(username).isPresent())
+            if (usersRepository.findByUsername(username).isPresent())
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "User already exist!");
             else {
-                Account account = new Account(username, password, true);
-                accountRepository.save(account);
-                logger.warn("AccountRepository injection: " + account);
+                Users user = new Users(username, new BCryptPasswordEncoder(10).encode(password), true);
+                usersRepository.save(user);
+                logger.warn("UsersRepository injection: " + user);
             }
         } else response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
     }
@@ -265,14 +302,14 @@ class PrincipalRestController {
                        @RequestParam(value = "password") String password,
                        HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (request.isUserInRole("ROLE_SUPERVISOR") || (request.isUserInRole("ROLE_ADMIN") && request.getUserPrincipal().getName().equals(username))) {
-            if (!accountRepository.findByUsername(username).isPresent())
+            if (!usersRepository.findByUsername(username).isPresent())
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unknown user: " + username);
             else {
-                Optional<Account> optional = accountRepository.findByUsername(username);
-                Account account = optional.get();
-                account.setPassword(password);
-                accountRepository.saveAndFlush(account);
-                logger.warn("AccountRepository update user: " + optional.get().getUsername());
+                Optional<Users> optional = usersRepository.findByUsername(username);
+                Users user = optional.get();
+                user.setPassword(new BCryptPasswordEncoder(10).encode(password));
+                usersRepository.saveAndFlush(user);
+                logger.warn("UsersRepository update user: " + optional.get().getUsername());
             }
         } else response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
     }
@@ -281,36 +318,51 @@ class PrincipalRestController {
     public void delete(@RequestParam(value = "username") String username,
                        HttpServletRequest request, HttpServletResponse response) throws IOException {
         if (request.isUserInRole("ROLE_SUPERVISOR") || (request.isUserInRole("ROLE_ADMIN") && request.getUserPrincipal().getName().equals(username))) {
-            if (!accountRepository.findByUsername(username).isPresent())
+            if (!usersRepository.findByUsername(username).isPresent())
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unknown user: " + username);
             else {
-                Optional<Account> optional = accountRepository.findByUsername(username);
-                accountRepository.delete(optional.get().getId());
-                logger.warn("AccountRepository delete: " + optional.toString());
+                Optional<Users> optional = usersRepository.findByUsername(username);
+                usersRepository.delete(optional.get());
+                logger.warn("UsersRepository delete: " + optional.toString());
             }
         } else response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
     }
 
     @GetMapping("/raw")
     public Object[] raw(HttpServletRequest request) { // Return a raw list!
-        if (request.isUserInRole("ROLE_SUPERVISOR")) return accountRepository.findAll().toArray();
+        if (request.isUserInRole("ROLE_SUPERVISOR")) return usersRepository.findAll().toArray();
         else return null;
     }
 }
 
 @Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
 class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    DataSource dataSource;
+
+    private final UserDetailsService userDetailsService;
+
+    @Autowired
+    public WebSecurityConfig(UserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         // @formatter:off
         http
-                .authorizeRequests()
-                .antMatchers(HttpMethod.OPTIONS, "/oauth/token", "/oauth/token_key").permitAll()
-             .and()
-                .csrf().disable()
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                .authorizeRequests().antMatchers(HttpMethod.OPTIONS, "/oauth/token", "/oauth/token_key").permitAll()
+            .and()
+                .csrf().disable().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         // @formatter:on
+    }
+
+    @Autowired
+    public void configureGlobal(AuthenticationManagerBuilder auth) throws Exception {
+        auth.jdbcAuthentication().dataSource(dataSource).passwordEncoder(new BCryptPasswordEncoder(10));
+        auth.userDetailsService(userDetailsService).passwordEncoder(new BCryptPasswordEncoder(10));
     }
 }
 
@@ -401,31 +453,29 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 }
 
 // See bootstrap.properties h2 database server config!
-// DROP TABLE IF EXISTS ACCOUNT;
-// CREATE TABLE ACCOUNT(ID BIGINT auto_increment PRIMARY KEY,USERNAME VARCHAR(255),PASSWORD VARCHAR(255),ACTIVE BOOLEAN);
+// DROP TABLE IF EXISTS USERS;
+// create table users(ID BIGINT auto_increment PRIMARY KEY, username varchar_ignorecase(50) not null unique, password varchar_ignorecase(255) not null, enabled boolean not null);
 @Entity
-class Account {
+class Users {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @NotEmpty
-    private String username, password;
+    private String username;
 
-    private boolean active;
+    private String password;
 
-    Account() { // JPA why !?
+    private boolean enabled;
+
+    Users() { // JPA why !?
     }
 
-    public Account(String username, String password, boolean active) {
+    public Users(String username, String password, boolean enabled) {
         this.username = username;
         this.password = password;
-        this.active = active;
-    }
-
-    public Long getId() {
-        return id;
+        this.enabled = enabled;
     }
 
     public String getUsername() {
@@ -441,12 +491,59 @@ class Account {
     }
 
     public boolean isActive() {
-        return active;
+        return enabled;
     }
 
     @Override
     public String toString() {
-        return "Account { id: " + id + ", username:" + username + ", password: " + password + ", active: " + active + " }";
+        return "User { id:" + id + ", username:" + username + ", password: " + password + ", enabled: " + enabled + " }";
+    }
+}
+
+// DROP TABLE IF EXISTS authorities;
+// create table authorities (ID BIGINT auto_increment PRIMARY KEY, username varchar_ignorecase(50) not null, authority varchar_ignorecase(50) not null, constraint fk_authorities_users foreign key(username) references users(username));
+// create unique index ix_auth_username on authorities (username, authority);
+@Entity
+class Authorities {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotEmpty
+    @JoinTable(name = "users", joinColumns = @JoinColumn(name = "username"))
+    private String username;
+
+    @NotEmpty
+    private String authority;
+
+    Authorities() { // JPA why !?
+    }
+
+    public Authorities(String username, String authority) {
+        this.username = username;
+        this.authority = authority;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getAuthority() {
+        return authority;
+    }
+
+    public void setAuthority(String authority) {
+        this.authority = authority;
+    }
+
+    @Override
+    public String toString() {
+        return "Authority { id:" + id + ", username:" + username + ", authority: " + authority + " }";
     }
 }
 
