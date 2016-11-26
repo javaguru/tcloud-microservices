@@ -55,7 +55,7 @@ import java.util.stream.Stream;
 /**
  * A Minimal Security OAuth2 Server
  *
- * Active Oauth2 JWT (Jason Web Token) SHA256 with RSA private/public keys in config!
+ * Active OAuth2 with Openid JWT (Jason Web Token) SHA256 with RSA private/public keys in config!
  *
  * curl http://localhost:9191/uaa/oauth/token_key
  * {"alg":"SHA256withRSA",
@@ -463,9 +463,7 @@ class Users {
     private Long id;
 
     @NotEmpty
-    private String username;
-
-    private String password;
+    private String username, password;
 
     private boolean enabled;
 
@@ -547,9 +545,10 @@ class Authorities {
     }
 }
 
+// Customized oauth_client_details table
 // DROP TABLE IF EXISTS CLIENT;
 // CREATE TABLE CLIENT(ID BIGINT auto_increment PRIMARY KEY,CLIENT_ID VARCHAR(255),SECRET VARCHAR(255),SCOPES VARCHAR(255),
-// AUTHORIZED_GRANT_TYPES VARCHAR(255),AUTHORITIES VARCHAR(255),AUTO_APPROVE_SCOPES VARCHAR(255), REGISTERED_REDIRECT_URI VARCHAR(1020));
+// AUTHORIZED_GRANT_TYPES VARCHAR(255),AUTHORITIES VARCHAR(255),AUTO_APPROVE_SCOPES VARCHAR(255), REGISTERED_REDIRECT_URI VARCHAR(1024));
 @Entity
 class Client {
 
