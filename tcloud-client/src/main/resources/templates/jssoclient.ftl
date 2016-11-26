@@ -23,14 +23,14 @@
          * Under GPL-3.0 license, see Tcloud-microservice :
          * https://github.com/javaguru/tcloud-microservices
          *
-         * Javascript SSO Client OAuth2, dependencies jQuery
+         * Javascript SSO Client OAuth2, dependencies jQuery min. 1.8.0
          *
          * Author: Franck Andriano on 17/11/2016.
-         * Version 1.1
+         * Version 1.2
          *
          * JSSOAuth2 use javascript global module pattern with import jQuery for Ajax and extend default options
          */
-        var JSSOAuth2 = (function ($) {
+        ;(function ($) {
             // Config OAuth2 Client and Token
             var defaultOptions = {
                 OAuth2Client: {
@@ -59,7 +59,7 @@
             var form_auth;
             var debug;
 
-            return function(options) {
+            this.JSSOAuth2 = function(options) {
 
                 this.options = $.extend({}, defaultOptions, options);
                 console.log("   Init JSSOAuth2...");
@@ -195,6 +195,7 @@
                     data: paramsData
                 })
             }
+            return JSSOAuth2;
         }(jQuery));
     </script>
 
