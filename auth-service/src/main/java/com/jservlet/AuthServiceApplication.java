@@ -456,6 +456,7 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 // DROP TABLE IF EXISTS USERS;
 // create table users(ID BIGINT auto_increment PRIMARY KEY, username varchar_ignorecase(50) not null unique, password varchar_ignorecase(255) not null, enabled boolean not null);
 @Entity
+@Table(uniqueConstraints = { @UniqueConstraint(columnNames = { "username" }) })
 class Users {
 
     @Id
