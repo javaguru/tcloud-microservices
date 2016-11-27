@@ -279,8 +279,8 @@
 
     function loginSSOError(xhr) {
         var jsonResp = JSON.parse(xhr.responseText);
-        $("#error").html(xhr.status+" "+jsonResp.error+" "
-                +(jsonResp.error_description == undefined) ? jsonResp.message : jsonResp.error_description).css("color","red");
+        $("#error").html(jsonResp.status+" "+jsonResp.error+" "+jsonResp.message+
+                (jsonResp.error_description != undefined ? jsonResp.error_description : "")).css("color","red");
     }
 
     // Ajax Client Services, attach deferred.promise(jqXHR)
