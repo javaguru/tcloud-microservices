@@ -94,11 +94,14 @@ class DiscoveryClientConsole implements CommandLineRunner {
 
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(DiscoveryClientConsole.class);
 
-    @Autowired
-    private DiscoveryClient discoveryClient;
+    private final DiscoveryClient discoveryClient;
+    private final LoadBalancerClient loadBalancerClient;
 
     @Autowired
-    private LoadBalancerClient loadBalancerClient;
+    public DiscoveryClientConsole(LoadBalancerClient loadBalancerClient, DiscoveryClient discoveryClient) {
+        this.loadBalancerClient = loadBalancerClient;
+        this.discoveryClient = discoveryClient;
+    }
 
     @Override
     public void run(String... strings) throws Exception {
@@ -124,8 +127,6 @@ class DiscoveryClientConsole implements CommandLineRunner {
         ServiceInstance authchoose = loadBalancerClient.choose("auth-service");
         if (authchoose != null)
             logger.warn("["+authchoose.getServiceId()+"] "+"choose: "+authchoose.getHost()+":"+authchoose.getPort()+" secure: "+authchoose.isSecure());
-
-
     }
 }
 
