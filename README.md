@@ -15,7 +15,7 @@
 * RabbitMQ Server
 * Tcloud Server Service 
 * Edge Server (Netflix Zuul Proxy)
-* Tcloud Client Service with Feign, Javascritp SSO OAuth2 Client, Swagger UI Rest Tcloud API Manual  
+* Tcloud Client Service with Feign, Javascript SSO OAuth2 Client, Swagger UI Rest Tcloud API Manual  
 
 ---
 
