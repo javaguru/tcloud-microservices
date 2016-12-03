@@ -1,4 +1,4 @@
-# tcloud-microservices
+# Tcloud-microservices
 
 **Microservices in Java**
 
@@ -6,15 +6,16 @@
 
 #### Spring Cloud Microservices :
 
+* Config Server Service  
 * Service Discovery Server (Netflix Eureka)
+* Minimal OAuth2 Service with Openid JWT (Jason Web Token) SHA256 with RSA private/public keys in config, with H2 database 
 * Dynamic Routing and Load Balancer (Netflix Ribbon)
-* Edge Server (Netflix Zuul)
 * Netflix Hystrix - Circuit breaker Netflix Hystrix
 * Netflix Hystrix dashboard and Netflix Turbine
 * RabbitMQ Server
-* OAuth2 Service with H2
-* Tcloud Server Service
-* Tcloud Client Service
+* Tcloud Server Service 
+* Edge Server (Netflix Zuul Proxy)
+* Tcloud Client Service with Feign, Javascritp SSO OAuth2 Client, Swagger UI Rest Tcloud API Manual  
 
 ---
 
