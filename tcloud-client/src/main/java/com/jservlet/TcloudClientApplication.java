@@ -2,8 +2,8 @@ package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
-import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
 import feign.RequestInterceptor;
+import io.swagger.annotations.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,18 +38,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.ModelAndView;
+import springfox.documentation.builders.*;
+import springfox.documentation.service.*;
+import springfox.documentation.service.Contact;
+import springfox.documentation.spi.DocumentationType;
+import springfox.documentation.spring.web.plugins.Docket;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /*import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.Output;
@@ -201,10 +207,13 @@ class CorsFilter implements Filter {
     public void destroy() { }
 }
 
-
-
 @Controller
 class TcloudLoginMvc {
+
+    @GetMapping(value = "/")
+    public String index() {
+        return "redirect:swagger-ui.html";
+    }
 
     @GetMapping("/login")
     ModelAndView login() { return new ModelAndView("jssoclient"); }
@@ -219,6 +228,10 @@ class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     public void configure(HttpSecurity http) throws Exception {
         // @formatter:off
         http
+                .authorizeRequests()
+                .antMatchers("/v2/api-docs/**").permitAll()
+                .antMatchers("/swagger-ui.html", "/webjars/**", "/swagger-resources/**").permitAll()
+            .and()
                 .authorizeRequests().antMatchers("/**").hasRole("USER")
             .and()
                 .formLogin().loginPage("/login").permitAll();
@@ -226,8 +239,42 @@ class ResourceServerConfig extends ResourceServerConfigurerAdapter {
     }
 }
 
+@Configuration
+@EnableSwagger2
+class SwaggerConfig {
+
+    @Bean
+    public Docket tcloudApi() {
+        return new Docket(DocumentationType.SWAGGER_2)
+                .groupName("tcloud-api")
+                .apiInfo(apiInfo())
+                .select().apis(RequestHandlerSelectors.any())
+                .paths(PathSelectors.ant("/api/v1/**"))
+                .build()
+                .securitySchemes(newArrayList(apiKey())) ;
+    }
+
+    @Bean
+    SecurityScheme apiKey() {
+        return new ApiKey("Authorization", "api_key", "header");
+    }
+
+    private ApiInfo apiInfo() {
+        ApiInfo apiInfo = new ApiInfo(
+                "Tcloud API Manual",
+                "This online API manual for the development of client-side reference :\n" +
+                        "- Put Authorization header : Bearer+' '+JWT(Jason Web Token)\n",
+                "0.0.1", "Terms of service",
+                new Contact("Swagger Tcloud API Team", "https://github.com/javaguru/tcloud-microservices", "support@jservlet.com"),
+                "GPL-3.0 license", "https://github.com/javaguru/tcloud-microservices/blob/master/LICENSE");
+        return apiInfo;
+    }
+}
+
+
+@Api(description = "Tclouds API")
 @RestController
-@RequestMapping("/tclouds")
+@RequestMapping({"/tclouds", "/api/v1"})
 class TcloudApiGateway {
 
     private final TcloudReader tcloudReader;
@@ -242,20 +289,22 @@ class TcloudApiGateway {
 
     /**
      * Get Rest Principal user through the OAuth2Sso!
-     * */
+     *
     @RequestMapping("/user")
     public Principal user(Principal user) {
         return user;
-    }
+    }*/
 
     public Collection<String> fallback() {
         return new ArrayList<>();
     }
 
-    @HystrixCommand(fallbackMethod = "fallback", commandProperties = {
-            @HystrixProperty(name = "execution.isolation.thread.timeoutInMilliseconds", value = "3000")
-    })
-    @GetMapping("/names")
+    @HystrixCommand(fallbackMethod = "fallback")
+    @ApiOperation(value = "Names tcloud data", notes = "Get names Tcloud json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success", response = String[].class),
+            @ApiResponse(code = 401, message = "Unauthorized")})
+    @GetMapping(path="/names", produces = "application/json")
     public Collection<String> names() {
         return this.tcloudReader
                 .read()
@@ -270,7 +319,11 @@ class TcloudApiGateway {
     }
 
     @HystrixCommand(fallbackMethod = "listback")
-    @GetMapping("/list")
+    @ApiOperation(value = "List tcloud data", notes = "Get list Tcloud json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success", response = Tcloud[].class),
+            @ApiResponse(code = 401, message = "Unauthorized")})
+    @GetMapping(path="/list", produces = "application/json")
     public Collection<Tcloud> list() {  // Return a list with ids!
         return this.tcloudReader
                 .read()
@@ -279,6 +332,11 @@ class TcloudApiGateway {
                 .collect(Collectors.toList());
     }
 
+    @ApiOperation(value = "Raw tcloud data", notes = "Raw list Tcloud json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success", response = Tcloud[].class),
+            @ApiResponse(code = 401, message = "Unauthorized"),
+            @ApiResponse(code = 500, message = "Failure")})
     @GetMapping("/raw")
     public Object[] raw() {    // Return a raw list!
         return this.tcloudReader
