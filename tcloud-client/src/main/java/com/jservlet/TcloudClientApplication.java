@@ -2,6 +2,7 @@ package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import feign.Param;
 import feign.RequestInterceptor;
 import io.swagger.annotations.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -33,13 +34,12 @@ import org.springframework.security.oauth2.config.annotation.web.configuration.R
 
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
+
 import springfox.documentation.builders.*;
 import springfox.documentation.service.*;
+
 import springfox.documentation.service.Contact;
 import springfox.documentation.spi.DocumentationType;
 import springfox.documentation.spring.web.plugins.Docket;
@@ -67,6 +67,9 @@ import org.springframework.messaging.MessageChannel;*/
 /**
  * Tcloud Client
  *
+ * Javascript OAuth2 SSO Client, login and handle Jason Web Token, see http://localhost:9999/login
+ * Swagger UI, Rest API support, see http://localhost:9999/swagger-ui.html
+ *
  * OAuth2SsoDefaultConfiguration for OAuth2 Single Sign On (SSO):
  * If the user only has {@code @EnableOAuth2Sso} but not on a WebSecurityConfigurerAdapter then one is
  * added with all paths secured and with an order that puts it ahead of the default HTTP Basic security chain in Spring Boot.
@@ -84,7 +87,7 @@ import org.springframework.messaging.MessageChannel;*/
 @IntegrationComponentScan */
 //@EnableOAuth2Sso        // @EnableOAuth2Client
 @EnableResourceServer   // Spring Boot 1.3, security.oauth2 in config!
-@EnableFeignClients
+@EnableFeignClients     // Scans for interfaces that declare they are feign clients (via @FeignClient)
 @EnableZuulProxy        // @EnableDiscoveryClient @EnableCircuitBreaker
 @SpringBootApplication  // @SpringBootConfiguration @EnableAutoConfiguration
 public class TcloudClientApplication {
@@ -149,17 +152,34 @@ MessageChannel output();
 }
 */
 
-@FeignClient("edge-service") // or edge-service / tcloud-service
-interface TcloudReader {                                // or /tclouds
+@FeignClient("edge-service") // by edge-service or tcloud-service
+interface TcloudReader {
+                                                   // /tcloud-service/tclouds or /tclouds
     @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds")  // GetMapping signature doesn't work with Feign!?
     Resources<Tcloud> read();
+
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds")
+    Resources<Tcloud> read(@RequestParam(value = "q") String q);
+
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/tclouds/{id}")
+    Resources<Tcloud> read(@PathVariable(value = "id") Long id);
+
+    @RequestMapping(method = RequestMethod.POST, value = "/tcloud-service/tclouds")
+    void save(@RequestBody Tcloud tcloud);
+
+    @RequestMapping(method = RequestMethod.PUT, value = "/tcloud-service/tclouds/{id}")
+    void update(@PathVariable("id") long id, @RequestBody Tcloud tcloud); // not RequestParam!
+
+    @RequestMapping(method = RequestMethod.DELETE, value = "/tcloud-service/tclouds/{id}") // idem!
+    void delete(@PathVariable(value = "id") Long id);
 }
 
-@FeignClient("edge-service") // or tcloud-service
-interface TcloudMessageReader {                         // or /message
-    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/message")  // GetMapping signature doesn't work with Feign!?
+@FeignClient("tcloud-service") // or edge-service / tcloud-service
+interface TcloudMessageReader {                // or /message
+    @RequestMapping(method = RequestMethod.GET, value = "/message")
     String read();
 }
+
 
 /**
  * Pre-defined custom RequestInterceptor for Feign Requests, uses the provided OAuth2ClientContext and Bearer tokens
@@ -234,11 +254,15 @@ class ResourceServerConfig extends ResourceServerConfigurerAdapter {
             .and()
                 .authorizeRequests().antMatchers("/**").hasRole("USER")
             .and()
-                .formLogin().loginPage("/login").permitAll();
+                .formLogin().loginPage("/login").permitAll(); // Override Spring HttpSecurity login form path!
         // @formatter:on
     }
 }
 
+/**
+ *  Bugs in Swagger-UI... Use static files swagger-ui/dist/ and swagger.json with Swagger Editor!
+ *  see http://editor.swagger.io
+ */
 @Configuration
 @EnableSwagger2
 class SwaggerConfig {
@@ -254,6 +278,7 @@ class SwaggerConfig {
                 .securitySchemes(newArrayList(apiKey())) ;
     }
 
+    // Put Authorization bearer +' '+JWT (Jason Web Token)
     @Bean
     SecurityScheme apiKey() {
         return new ApiKey("Authorization", "api_key", "header");
@@ -278,6 +303,7 @@ class SwaggerConfig {
 class TcloudApiGateway {
 
     private final TcloudReader tcloudReader;
+
 
   /*  private final TcloudWriter tcloudWriter;*/
 
@@ -337,7 +363,7 @@ class TcloudApiGateway {
             @ApiResponse(code = 200, message = "Success", response = Tcloud[].class),
             @ApiResponse(code = 401, message = "Unauthorized"),
             @ApiResponse(code = 500, message = "Failure")})
-    @GetMapping("/raw")
+    @GetMapping(path="/raw", produces = "application/json")
     public Object[] raw() {    // Return a raw list!
         return this.tcloudReader
                 .read()
@@ -345,6 +371,36 @@ class TcloudApiGateway {
                 .stream()
                 .sequential()
                 .toArray();
+    }
+
+    @ApiOperation(value = "Add tcloud data", notes = "Add Tcloud json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success"),
+            @ApiResponse(code = 401, message = "Unauthorized"),
+            @ApiResponse(code = 500, message = "Failure")})
+    @PostMapping(path = "/save")
+    public void save(@RequestBody Tcloud tcloud) {
+        this.tcloudReader.save(tcloud);
+    }
+
+    @ApiOperation(value = "Update tcloud data", notes = "Update Tcloud json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success"),
+            @ApiResponse(code = 401, message = "Unauthorized"),
+            @ApiResponse(code = 500, message = "Failure")})
+    @PutMapping(path = "/update")
+    public void update(@RequestParam(value = "id") long id, @RequestBody Tcloud tcloud) {
+        this.tcloudReader.update(id, tcloud);
+    }
+
+    @ApiOperation(value = "Delete tcloud data", notes = "Delete Tcloud id json")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success"),
+            @ApiResponse(code = 401, message = "Unauthorized"),
+            @ApiResponse(code = 500, message = "Failure")})
+    @DeleteMapping(path="/delete")
+    public void delete(@RequestParam(value = "id") Long id) {
+        this.tcloudReader.delete(id);
     }
 
    /* @PostMapping()
@@ -387,7 +443,6 @@ class TcloudApiGatewayMvc {
 
         return model;
     }
-
 }
 
 class Tcloud {
@@ -396,7 +451,7 @@ class Tcloud {
 
     private String tcloudName;
 
-    Tcloud() {  // JPA why !?
+    public Tcloud() {
     }
 
     public Tcloud(String tcloudName) {

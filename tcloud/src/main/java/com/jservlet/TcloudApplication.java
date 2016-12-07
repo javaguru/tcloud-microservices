@@ -1,7 +1,6 @@
 package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
-import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -12,6 +11,7 @@ import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import org.springframework.data.rest.core.annotation.RestResource;
@@ -33,6 +33,9 @@ import org.springframework.cloud.stream.annotation.Input;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.servlet.http.HttpServletResponse;
+import javax.transaction.Transactional;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -103,6 +106,26 @@ class SampleDataCLR implements CommandLineRunner {
     }
 }
 
+
+/**
+ * Spring Data JPA-powered <em>repository</em> interface.
+ * Supports common operations like {@link #findAll()} and {@link #save(Object)} against JPA entities.
+ * This particular repository deals in {@link com.jservlet.Tcloud tcloud} objects.
+ *
+ * curl -X GET -H "Content-Type: application/json" --url "http://localhost:8010/tclouds/search/by-name?rn=Test1"
+ * curl -X GET -H "Content-Type: application/json" --url "http://localhost:8010/tclouds/search/by-id?rn=1"
+ */
+@RepositoryRestResource
+interface TcloudRepository extends JpaRepository<Tcloud, Long>{
+
+    @RestResource(path = "by-name")
+    Optional<Tcloud> findByTcloudName(@Param("rn") String rn);
+
+    @RestResource(path = "by-id")
+    Optional<Tcloud> findById(@Param("rn") Long rn);
+
+}
+
 // Supports dynamic re-configuration!
 // curl -d{} http://localhost:8010/refresh
 // ["message"]
@@ -137,24 +160,44 @@ class TcloudRestController {
         this.tcloudRepository = tcloudRepository;
     }
 
-    public Collection<Tcloud> tcloudfallback() {
-        return new ArrayList<Tcloud>();
-    }
-
-    @HystrixCommand(fallbackMethod = "tcloudfallback")
     @GetMapping("/tclouds-service")
-    Collection<Tcloud> tclouds() {
+    public Collection<Tcloud> tclouds() {
         return this.tcloudRepository.findAll();
     }
 
-    @GetMapping("/tclouds-service/{q}")
-    Collection<Tcloud> tcloud(@PathVariable(value = "q", required = false) String q) {
-        return this.tcloudRepository.findByTcloudName(q);
+    @GetMapping("/tclouds-service/")
+    public Tcloud tcloud(@RequestParam(value = "q") String q) {
+        return this.tcloudRepository.findByTcloudName(q).isPresent() ? this.tcloudRepository.findByTcloudName(q).get() : null;
+    }
+
+    @GetMapping("/tclouds-service/{id}")
+    public Tcloud tcloudId(@PathVariable(value = "id") Long id) {
+        return this.tcloudRepository.findById(id).isPresent() ? this.tcloudRepository.findById(id).get() : null;
+    }
+
+    @PostMapping("/tclouds-service")
+    public void save(@RequestBody Tcloud tcloud) {
+        tcloudRepository.saveAndFlush(tcloud);
+    }
+
+    @PutMapping("/tclouds-service/{id}")
+    public void update(@PathVariable(value = "id") Long id, @RequestBody Tcloud tcloud) {     // or RequestParam!?
+        if (tcloudRepository.findById(id).isPresent()) {
+            tcloud.setId(id);
+            tcloudRepository.saveAndFlush(tcloud);
+        }
+    }
+
+    @DeleteMapping("/tclouds-service/{id}")
+    public void delete(@PathVariable(value = "id") Long id) {  // idem!
+        if (tcloudRepository.findById(id).isPresent()) {
+            tcloudRepository.delete(id);
+        }
     }
 }
 
 /**
- * Handles the FreeMarker-powered view responses.
+ * Handles the FreeMarker-powered view responses (Simple page service).
  */
 @Controller
 @RequestMapping("/tclouds")
@@ -181,27 +224,6 @@ class TcloudMvcController {
         model.addObject("tclouds", data);
         return model;
     }
-
-}
-
-
-/**
- * Spring Data JPA-powered <em>repository</em> interface.
- * Supports common operations like {@link #findAll()} and {@link #save(Object)} against JPA entities.
- * This particular repository deals in {@link com.jservlet.Tcloud tcloud} objects.
- *
- * curl -X GET -H "Content-Type: application/json" --url "http://localhost:8010/tclouds/search/by-name?rn=Test1"
- * curl -X GET -H "Content-Type: application/json" --url "http://localhost:8010/tclouds/search/by-id?rn=1"
- */
-@RepositoryRestResource
-interface TcloudRepository extends JpaRepository<Tcloud, Long> {
-
-    @RestResource(path = "by-name")
-    Collection<Tcloud> findByTcloudName(@Param("rn") String rn);
-
-    @RestResource(path = "by-id")
-    Collection<Tcloud> findById(@Param("rn") Long rn);
-
 }
 
 

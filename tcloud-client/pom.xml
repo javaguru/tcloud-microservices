@@ -117,7 +117,14 @@
 			<scope>test</scope>
 		</dependency>
 
-	</dependencies>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+            <version>1.2.6.RELEASE</version>
+        </dependency>
+
+    </dependencies>
 
 	<dependencyManagement>
 		<dependencies>
@@ -132,13 +139,22 @@
 	</dependencyManagement>
 
 	<build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<agent>${settings.localRepository}/org/springframework/springloaded/1.2.6.RELEASE/springloaded-1.2.6.RELEASE.jar</agent>
+					<jvmArguments>-noverify</jvmArguments>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
-
 
 </project>
