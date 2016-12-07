@@ -23,7 +23,7 @@
          * Under GPL-3.0 license, see Tcloud-microservice :
          * https://github.com/javaguru/tcloud-microservices
          *
-         * Javascript SSO Client OAuth2, dependencies jQuery min. 1.8.0
+         * Javascript OAuth2 SSO Client, dependencies jQuery >= 1.8.0
          *
          * Author: Franck Andriano on 17/11/2016.
          * Version 1.2
@@ -131,7 +131,6 @@
 
             // Ajax request!
             function loginToken(){
-                cleanToken();
                 // Form input values username & password
                 var $form = $(form_auth);
                 if ($form.find('input[name="username"]').length>0  && $form.find('input[name="password"]').length>0) {
