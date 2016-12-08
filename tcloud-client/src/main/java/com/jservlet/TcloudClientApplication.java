@@ -2,7 +2,6 @@ package com.jservlet;
 
 import com.google.common.collect.ImmutableMap;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
-import feign.Param;
 import feign.RequestInterceptor;
 import io.swagger.annotations.*;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -174,9 +173,9 @@ interface TcloudReader {
     void delete(@PathVariable(value = "id") Long id);
 }
 
-@FeignClient("tcloud-service") // or edge-service / tcloud-service
+@FeignClient("edge-service") // or edge-service / tcloud-service
 interface TcloudMessageReader {                // or /message
-    @RequestMapping(method = RequestMethod.GET, value = "/message")
+    @RequestMapping(method = RequestMethod.GET, value = "/tcloud-service/message")
     String read();
 }
 
