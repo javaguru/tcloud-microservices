@@ -11,7 +11,6 @@ import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import org.springframework.data.rest.core.annotation.RestResource;
@@ -33,9 +32,6 @@ import org.springframework.cloud.stream.annotation.Input;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
-import javax.servlet.http.HttpServletResponse;
-import javax.transaction.Transactional;
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -52,6 +48,7 @@ public class TcloudApplication {
 
     /**
      * Force to expose Tcloud.Long.id, with config defaultMediaType = MediaTypes.HAL_JSON!
+     * (Consumers do not need to know your db ids, just for a demo...)
      */
     @Configuration
     public class MyRepoRestAdapter extends RepositoryRestConfigurerAdapter {
