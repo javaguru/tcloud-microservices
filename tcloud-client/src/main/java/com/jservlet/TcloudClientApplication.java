@@ -209,7 +209,7 @@ class CorsFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) res;
         HttpServletRequest request = (HttpServletRequest) req;
         response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE");
         response.setHeader("Access-Control-Max-Age", "1800");
         response.setHeader("Access-Control-Allow-Headers", "origin,accept,x-requested-with,content-type,access-control-request-method,access-control-request-headers,authorization");
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -277,7 +277,7 @@ class SwaggerConfig {
                 .securitySchemes(newArrayList(apiKey())) ;
     }
 
-    // Put Authorization bearer +' '+JWT (Jason Web Token)
+    // Put Authorization bearer +' '+Token
     @Bean
     SecurityScheme apiKey() {
         return new ApiKey("Authorization", "api_key", "header");
@@ -287,7 +287,7 @@ class SwaggerConfig {
         ApiInfo apiInfo = new ApiInfo(
                 "Tcloud API Manual",
                 "This online API manual for the development of client-side reference :\n" +
-                        "- Put Authorization header : Bearer+' '+JWT(Jason Web Token)\n",
+                        "- Put Authorization header : Bearer+' '+Token\n",
                 "0.0.1", "Terms of service",
                 new Contact("Swagger Tcloud API Team", "https://github.com/javaguru/tcloud-microservices", "support@jservlet.com"),
                 "GPL-3.0 license", "https://github.com/javaguru/tcloud-microservices/blob/master/LICENSE");
@@ -302,7 +302,6 @@ class SwaggerConfig {
 class TcloudApiGateway {
 
     private final TcloudReader tcloudReader;
-
 
   /*  private final TcloudWriter tcloudWriter;*/
 
@@ -396,6 +395,7 @@ class TcloudApiGateway {
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Success"),
             @ApiResponse(code = 401, message = "Unauthorized"),
+            @ApiResponse(code = 404, message = "Not Found"),
             @ApiResponse(code = 500, message = "Failure")})
     @DeleteMapping(path="/delete")
     public void delete(@RequestParam(value = "id") Long id) {

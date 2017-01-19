@@ -133,7 +133,7 @@
             function loginToken(){
                 // Form input values username & password
                 var $form = $(form_auth);
-                if ($form.find('input[name="username"]').length>0  && $form.find('input[name="password"]').length>0) {
+                if ($form.find('input[name="username"]').length>0 && $form.find('input[name="password"]').length>0) {
                     OAuth2Client.username = $form.find('input[name="username"]').val();
                     OAuth2Client.password = $form.find('input[name="password"]').val();
                 }
@@ -287,8 +287,12 @@
 
         function loginSSOError(xhr) {
             var jsonResp = JSON.parse(xhr.responseText);
-            $("#error").html(jsonResp.status+" "+jsonResp.error+" "+jsonResp.message+
-                (jsonResp.error_description != undefined ? jsonResp.error_description : "")).css("color","red");
+            if (jsonResp.status != undefined && jsonResp.message != undefined && jsonResp.error != undefined) {
+                $("#error").html(jsonResp.status + " " +jsonResp.error+" "+ jsonResp.message).css("color", "red");
+            }
+            else if (jsonResp.error != undefined && jsonResp.error_description != undefined){
+                $("#error").html(jsonResp.error+" "+jsonResp.error_description).css("color","red");
+            }
         }
 
         // Ajax Client Services, attach deferred.promise(jqXHR)
