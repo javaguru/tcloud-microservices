@@ -2,19 +2,22 @@ package com.jservlet;
 
 import org.apache.log4j.Logger;
 import org.hibernate.validator.constraints.NotEmpty;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.*;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.*;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -26,18 +29,36 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.common.exceptions.OAuth2Exception;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
-import org.springframework.security.oauth2.provider.ClientDetailsService;
-import org.springframework.security.oauth2.provider.ClientRegistrationException;
+import org.springframework.security.oauth2.provider.*;
+import org.springframework.security.oauth2.provider.approval.ApprovalStore;
+import org.springframework.security.oauth2.provider.approval.JdbcApprovalStore;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
+import org.springframework.security.oauth2.provider.client.ClientCredentialsTokenGranter;
+import org.springframework.security.oauth2.provider.code.AuthorizationCodeServices;
+import org.springframework.security.oauth2.provider.code.AuthorizationCodeTokenGranter;
+import org.springframework.security.oauth2.provider.code.JdbcAuthorizationCodeServices;
+import org.springframework.security.oauth2.provider.error.DefaultWebResponseExceptionTranslator;
+import org.springframework.security.oauth2.provider.error.WebResponseExceptionTranslator;
+import org.springframework.security.oauth2.provider.implicit.ImplicitTokenGranter;
+import org.springframework.security.oauth2.provider.password.ResourceOwnerPasswordTokenGranter;
+import org.springframework.security.oauth2.provider.refresh.RefreshTokenGranter;
+import org.springframework.security.oauth2.provider.request.DefaultOAuth2RequestFactory;
+import org.springframework.security.oauth2.provider.token.AuthorizationServerTokenServices;
+import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.JdbcTokenStore;
 import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import javax.persistence.*;
@@ -47,6 +68,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -55,14 +77,9 @@ import java.util.stream.Stream;
 /**
  * A Minimal Security OAuth2 Server
  *
- * Active OAuth2 with Openid JWT (Jason Web Token) SHA256 with RSA private/public keys in config!
- *
- * curl http://localhost:9191/uaa/oauth/token_key
- * {"alg":"SHA256withRSA",
- *  "value":"-----BEGIN PUBLIC KEY-----
- *  MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNQZKqTlO/+2b4ZdhqGJzGBDltb5PZmBz1ALN2YLvt341pH6i5mO1V9cX5Ty1LM70fKfnIoYUP4KCE
- *  33dPnC7LkUwE/myh1zM6m8cbL5cYFPyP099thbVxzJkjHWqywvQih/qOOjliomKbM9pxG8Z1dB26hL9dSAZuA8xExjlPmQIDAQAB
- *  -----END PUBLIC KEY-----"}
+ * curl -v -s --user acme:$2a$10$z/8fQRJlWmEB2jU3kC2rueX0gtVi340X2/bri6U5Yxw4tdHG/vZJS http://localhost:9191/uaa/oauth/token -d grant_type=password -d client_id=acme -d scope=read -d username=franck -d password=spring
+ * curl -v -s --user acme:$2a$10$z/8fQRJlWmEB2jU3kC2rueX0gtVi340X2/bri6U5Yxw4tdHG/vZJS http://localhost:9191/uaa/oauth/token -d grant_type=client_credentials -d scope=read
+ * curl -v -s --user acme:$2a$10$z/8fQRJlWmEB2jU3kC2rueX0gtVi340X2/bri6U5Yxw4tdHG/vZJS http://localhost:9191/uaa/oauth/token -d grant_type=authorization_code -d client_id=acme -d redirect_uri=http://example.com -d code=LCd7zR
  *
  * *************
  * Code grant
@@ -110,6 +127,8 @@ import java.util.stream.Stream;
  * <p>
  * Use this TOKEN as a parameter of http request... access_token=9bf70492-6dad-40f4-9d6a-0237e5c1dec4
  *
+ * See h2-console on Eureka Service http://localhost:8761/h2-console/
+ *
  * @author Franck Andriano 2016
  */
 @EnableDiscoveryClient
@@ -131,8 +150,8 @@ interface AuthoritiesRepository extends JpaRepository<Authorities, Long> {
     List<Authorities> findByUsername(String username);
 }
 
-interface ClientRepository extends JpaRepository<Client, Long> {
-    Optional<Client> findByClientId(String clientId);
+interface ClientRepository extends JpaRepository<Clients, String> {
+    Optional<Clients> findByClientId(String clientId);
 }
 
 @Component
@@ -145,7 +164,8 @@ class OAuth2InitConfig implements CommandLineRunner {
     private final ClientRepository clientRepository;
 
     @Autowired
-    public OAuth2InitConfig(UsersRepository usersRepository, AuthoritiesRepository authoritiesRepository,
+    public OAuth2InitConfig(UsersRepository usersRepository,
+                            AuthoritiesRepository authoritiesRepository,
                             ClientRepository clientRepository) {
         this.usersRepository = usersRepository;
         this.authoritiesRepository = authoritiesRepository;
@@ -180,7 +200,7 @@ class OAuth2InitConfig implements CommandLineRunner {
         // Clients
         if (clientRepository.findAll().isEmpty()) {
             Stream.of("acme,acmesecret", "mobile,secret", "html5,secret").map(x -> x.split(","))
-                    .forEach(tpl -> clientRepository.save(new Client(tpl[0], new BCryptPasswordEncoder(10).encode(tpl[1]))));
+                    .forEach(tpl -> clientRepository.save(new Clients(tpl[0], new BCryptPasswordEncoder(10).encode(tpl[1]))));
             logger.warn("ClientRepository creation:");
         }
         else logger.warn("ClientRepository injection:");
@@ -198,7 +218,8 @@ class OAuth2ServerConfig {
     private final UsersRepository usersRepository;
 
     @Autowired
-    public OAuth2ServerConfig(UsersRepository usersRepository, AuthoritiesRepository authoritiesRepository,
+    public OAuth2ServerConfig(UsersRepository usersRepository,
+                              AuthoritiesRepository authoritiesRepository,
                               ClientRepository clientRepository) {
         this.usersRepository = usersRepository;
         this.authoritiesRepository = authoritiesRepository;
@@ -211,16 +232,16 @@ class OAuth2ServerConfig {
             .map(client -> {
                 BaseClientDetails details = new BaseClientDetails(
                         client.getClientId(),
-                        null,
-                        client.getScopes(),
+                        client.getResourceIds(),
+                        client.getScope(),
                         client.getAuthorizedGrantTypes(),
                         client.getAuthorities(),
-                        client.getRegisteredRedirectUri()
+                        client.getWebServerRedirectUri()
                 );
-                details.setClientSecret(client.getSecret());
-                details.setAutoApproveScopes(Arrays.asList(client.getAutoApproveScopes().split(",")));
-                details.setAccessTokenValiditySeconds(1800);  // 30mn Token < 1h RefreshToken!
-                details.setRefreshTokenValiditySeconds(3600);
+                details.setClientSecret(client.getClientSecret());
+                details.setAutoApproveScopes(Arrays.asList(client.getAutoapprove().split(",")));
+                details.setAccessTokenValiditySeconds(client.getAccessTokenValidity()); // 30mn Token < 1h RefreshToken!
+                details.setRefreshTokenValiditySeconds(client.getRefreshTokenValidity());
                 return details;
             })
             .orElseThrow(() -> new ClientRegistrationException(String.format("no client %s registered", clientId)));
@@ -308,7 +329,7 @@ class PrincipalRestController {
                 Optional<Users> optional = usersRepository.findByUsername(username);
                 Users user = optional.get();
                 user.setPassword(new BCryptPasswordEncoder(10).encode(password));
-                usersRepository.saveAndFlush(user);
+                usersRepository.save(user);
                 logger.warn("UsersRepository update user: " + optional.get().getUsername());
             }
         } else response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
@@ -330,8 +351,7 @@ class PrincipalRestController {
 
     @GetMapping("/raw")
     public Object[] raw(HttpServletRequest request) { // Return a raw list!
-        if (request.isUserInRole("ROLE_SUPERVISOR")) return usersRepository.findAll().toArray();
-        else return null;
+        return request.isUserInRole("ROLE_SUPERVISOR") ? usersRepository.findAll().toArray() : null;
     }
 }
 
@@ -353,9 +373,11 @@ class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     protected void configure(HttpSecurity http) throws Exception {
         // @formatter:off
         http
-                .authorizeRequests().antMatchers(HttpMethod.OPTIONS, "/oauth/token", "/oauth/token_key").permitAll()
+                .requestMatchers().antMatchers(HttpMethod.OPTIONS, "/oauth/token")
             .and()
-                .csrf().disable().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                .csrf().disable().authorizeRequests().anyRequest().permitAll()
+            .and()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         // @formatter:on
     }
 
@@ -375,7 +397,7 @@ class CorsFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) res;
         HttpServletRequest request = (HttpServletRequest) req;
         response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE");
         response.setHeader("Access-Control-Max-Age", "1800");
         response.setHeader("Access-Control-Allow-Headers", "origin,accept,x-requested-with,content-type,access-control-request-method,access-control-request-headers,authorization");
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -398,33 +420,23 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
     private Logger logger = Logger.getLogger(getClass());
 
-    @Value("${config.oauth2.private-key}")
-    private String privateKey;
+    @Autowired
+    DataSource dataSource;
 
-    @Value("${config.oauth2.public-key}")
-    private String publicKey;
+    @Autowired
+    AuthorizationCodeServices authorizationCodeServices;
+
+    @Autowired
+    ApprovalStore approvalStore;
 
     private final AuthenticationManager authenticationManager;
     private final ClientDetailsService clientDetailsService;
     private final UserDetailsService userDetailsService;
 
-    @Bean
-    public JwtAccessTokenConverter tokenEnhancer() {
-        logger.warn("Initializing JWT with public key:\n" + publicKey);
-        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
-        converter.setSigningKey(privateKey);
-        converter.setVerifierKey(publicKey);
-        return converter;
-    }
-
-    @Bean
-    public JwtTokenStore tokenStore() {  // Handle OAuth2 refresh JwtToken!
-        return new JwtTokenStore(tokenEnhancer());
-    }
-
     @Autowired
     public AuthorizationServerConfig(AuthenticationManager authenticationManager,
-                                     ClientDetailsService clientDetailsService, UserDetailsService userDetailsService) {
+                                     ClientDetailsService clientDetailsService,
+                                     UserDetailsService userDetailsService) {
         this.authenticationManager = authenticationManager;
         this.clientDetailsService = clientDetailsService;
         this.userDetailsService = userDetailsService;
@@ -437,20 +449,87 @@ class AuthorizationServerConfig extends AuthorizationServerConfigurerAdapter {
 
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+
+        OAuth2RequestFactory oAuth2RequestFactory = new DefaultOAuth2RequestFactory(clientDetailsService);
+
+        AuthorizationServerTokenServices tokenServices = tokenServices();
+
+        // Custom your TokenGranter!
+        ResourceOwnerPasswordTokenGranter resourceOwnerPasswordTokenGranter = new ResourceOwnerPasswordTokenGranter(authenticationManager, tokenServices, clientDetailsService, oAuth2RequestFactory);
+        RefreshTokenGranter refreshTokenGranter = new RefreshTokenGranter(tokenServices, clientDetailsService, oAuth2RequestFactory);
+        ImplicitTokenGranter implicitTokenGranter = new ImplicitTokenGranter(tokenServices, clientDetailsService, oAuth2RequestFactory);
+        ClientCredentialsTokenGranter clientCredentialsTokenGranter = new ClientCredentialsTokenGranter(tokenServices, clientDetailsService, oAuth2RequestFactory);
+        AuthorizationCodeTokenGranter authorizationCodeTokenGranter = new AuthorizationCodeTokenGranter(tokenServices, authorizationCodeServices(), clientDetailsService, oAuth2RequestFactory);
+
+        List<TokenGranter> tokenGranters = new ArrayList<>();
+        tokenGranters.add(resourceOwnerPasswordTokenGranter);
+        tokenGranters.add(refreshTokenGranter);
+        tokenGranters.add(implicitTokenGranter);
+        tokenGranters.add(clientCredentialsTokenGranter);
+        tokenGranters.add(authorizationCodeTokenGranter);
+
+        CompositeTokenGranter compositeTokenGranter = new CompositeTokenGranter(tokenGranters);
+
         // @formatter:off
         endpoints
                 .tokenStore(tokenStore())
-                .accessTokenConverter(tokenEnhancer())
-                .authenticationManager(authenticationManager).userDetailsService(userDetailsService);
+                .tokenServices(tokenServices)
+                .approvalStore(approvalStore)
+                .requestFactory(oAuth2RequestFactory)
+                .authorizationCodeServices(authorizationCodeServices)
+                .tokenGranter(compositeTokenGranter)
+                .authenticationManager(authenticationManager)
+                .userDetailsService(userDetailsService)
+                .setClientDetailsService(clientDetailsService);
+
+        endpoints.exceptionTranslator(loggingExceptionTranslator());
         // @formatter:on
     }
 
-    @Override
-    public void configure(AuthorizationServerSecurityConfigurer server) throws Exception {
-        server.tokenKeyAccess("isAnonymous() || hasAuthority('ROLE_TRUSTED_CLIENT')")
-                .checkTokenAccess("hasAuthority('ROLE_TRUSTED_CLIENT')");
+    @Bean
+    @Primary
+    public DefaultTokenServices tokenServices() {
+        DefaultTokenServices defaultTokenServices = new DefaultTokenServices();
+        defaultTokenServices.setTokenStore(tokenStore());
+        defaultTokenServices.setSupportRefreshToken(true);
+        return defaultTokenServices;
+    }
+
+    @Bean
+    public TokenStore tokenStore() {
+        return new JdbcTokenStore(dataSource);
+    }
+
+    @Bean
+    protected AuthorizationCodeServices authorizationCodeServices() {
+        return new JdbcAuthorizationCodeServices(dataSource);
+    }
+
+    @Bean
+    protected ApprovalStore approvalStore() {
+        return new JdbcApprovalStore(dataSource);
+    }
+
+    @Bean
+    public WebResponseExceptionTranslator loggingExceptionTranslator() {
+        return new DefaultWebResponseExceptionTranslator() {
+            @Override
+            public ResponseEntity<OAuth2Exception> translate(Exception e) throws Exception {
+                // This is the line that prints the stack trace to the log.
+                // You can customise this to format the trace etc if you like
+                e.printStackTrace();
+
+                // Carry on handling the exception
+                ResponseEntity<OAuth2Exception> responseEntity = super.translate(e);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setAll(responseEntity.getHeaders().toSingleValueMap());
+                OAuth2Exception excBody = responseEntity.getBody();
+                return new ResponseEntity<>(excBody, headers, responseEntity.getStatusCode());
+            }
+        };
     }
 }
+
 
 // See bootstrap.properties h2 database server config!
 // DROP TABLE IF EXISTS USERS;
@@ -546,73 +625,130 @@ class Authorities {
     }
 }
 
-// Customized oauth_client_details table
-// DROP TABLE IF EXISTS CLIENT;
-// CREATE TABLE CLIENT(ID BIGINT auto_increment PRIMARY KEY,CLIENT_ID VARCHAR(255),SECRET VARCHAR(255),SCOPES VARCHAR(255),
-// AUTHORIZED_GRANT_TYPES VARCHAR(255),AUTHORITIES VARCHAR(255),AUTO_APPROVE_SCOPES VARCHAR(255), REGISTERED_REDIRECT_URI VARCHAR(1024));
+// See ../resources/schema.sql
 @Entity
-class Client {
+@Table(name = "oauth_client_details")
+class Clients implements Serializable {
 
     @Id
-    @GeneratedValue
-    private Long id;
-
-    @NotEmpty
-    private String clientId, secret;
-    private String scopes = from("read", "write");
+    private String clientId;
+    private String clientSecret;
+    private String resourceIds = null;
+    private String scope = from("read", "write");
     private String authorizedGrantTypes = from("client_credentials", "implicit", "authorization_code", "refresh_token", "password");
+    private String webServerRedirectUri = from("");
     private String authorities = from("ROLE_USER", "ROLE_ADMIN");
-    private String autoApproveScopes = from("true");
-    private String registeredRedirectUri = from();
+    private Integer accessTokenValidity = 1800; // 30mn Token < 1h RefreshToken!
+    private Integer refreshTokenValidity = 3600;
+    private String additionalInformation = "SSO RestWeb";
+    private String autoapprove = from("true");
 
-    public String getScopes() {
-        return scopes;
+    Clients() { // JPA why !?
     }
 
-    public String getAuthorizedGrantTypes() {
-        return authorizedGrantTypes;
-    }
-
-    public String getAuthorities() {
-        return authorities;
-    }
-
-    public String getAutoApproveScopes() {
-        return autoApproveScopes;
-    }
-
-    public String getRegisteredRedirectUri() {
-        return registeredRedirectUri;
+    public Clients(String clientId, String clientSecret) {
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
     }
 
     private static String from(String... arr) {
         return Arrays.stream(arr).collect(Collectors.joining(","));
     }
 
-    public Client(String clientId, String clientSecret) {
-        this.clientId = clientId;
-        this.secret = clientSecret;
-    }
-
-    Client() { // JPA why !?
-    }
-
-    public Long getId() {
-        return id;
-    }
-
     public String getClientId() {
-        return clientId;
+        return this.clientId;
     }
 
-    public String getSecret() {
-        return secret;
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public String getClientSecret() {
+        return this.clientSecret;
+    }
+
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret;
+    }
+
+    public String getResourceIds() {
+        return this.resourceIds;
+    }
+
+    public void setResourceIds(String resourceIds) {
+        this.resourceIds = resourceIds;
+    }
+
+    public String getScope() {
+        return this.scope;
+    }
+
+    public void setScope(String scope) {
+        this.scope = scope;
+    }
+
+    public String getAuthorizedGrantTypes() {
+        return this.authorizedGrantTypes;
+    }
+
+    public void setAuthorizedGrantTypes(String authorizedGrantTypes) {
+        this.authorizedGrantTypes = authorizedGrantTypes;
+    }
+
+    public String getWebServerRedirectUri() {
+        return this.webServerRedirectUri;
+    }
+
+    public void setWebServerRedirectUri(String webServerRedirectUri) {
+        this.webServerRedirectUri = webServerRedirectUri;
+    }
+
+    public String getAuthorities() {
+        return this.authorities;
+    }
+
+    public void setAuthorities(String authorities) {
+        this.authorities = authorities;
+    }
+
+    public Integer getAccessTokenValidity() {
+        return this.accessTokenValidity;
+    }
+
+    public void setAccessTokenValidity(Integer accessTokenValidity) {
+        this.accessTokenValidity = accessTokenValidity;
+    }
+
+    public Integer getRefreshTokenValidity() {
+        return this.refreshTokenValidity;
+    }
+
+    public void setRefreshTokenValidity(Integer refreshTokenValidity) {
+        this.refreshTokenValidity = refreshTokenValidity;
+    }
+
+    public String getAdditionalInformation() {
+        return this.additionalInformation;
+    }
+
+    public void setAdditionalInformation(String additionalInformation) {
+        this.additionalInformation = additionalInformation;
+    }
+
+    public String getAutoapprove() {
+        return this.autoapprove;
+    }
+
+    public void setAutoapprove(String autoapprove) {
+        this.autoapprove = autoapprove;
     }
 
     @Override
     public String toString() {
-        return "Client { clientId: " + clientId + ", secret: " + secret + ", scopes: [" + scopes +
+        return "Client { clientId: " + clientId + ", clientSecret: " + clientSecret + ", scope: [" + scope +
                 "], authorizedGrantTypes: [" + authorizedGrantTypes + "], authorities: [" + authorities +
-                "] autoApproveScopes: [" + autoApproveScopes + "], registeredRedirectUri: [" + registeredRedirectUri + "] }";
+                "], accessTokenValidity: [" + accessTokenValidity + "], refreshTokenValidity: [" + refreshTokenValidity +
+                "] autoapprove: [" + autoapprove + "], webServerRedirectUri: [" + webServerRedirectUri + "] }";
     }
+
 }
